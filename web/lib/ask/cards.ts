@@ -1,5 +1,7 @@
-// Ask's ready answers (md_files/ASK_PLAN.md): seven questions worked out from data we already
-// have, saved per brand in signal_snapshots, so opening the page costs nothing.
+// Ask's ready answers (md_files/ASK_PLAN.md): questions worked out every morning, saved per brand in
+// signal_snapshots, so opening the page costs nothing. The data comes through the MCP tools
+// (lib/ask/tools.ts): list_replies, list_leads, get_search_agent, get_daily_numbers. The Google and
+// visibility cards also read Search Console's page check and the sitemap, which have no tool yet.
 // The sentences are written here from the numbers, not by AI: free, the same every day, and a
 // number can't come out wrong.
 
@@ -8,9 +10,10 @@ import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { agentsDemo, withDemo } from '@/lib/agents/demo'
-import { readDemoSwitch, readLeadData, readSearchData, type Lead, type SearchAgentData } from '@/lib/agents/store'
-import { listConversations, type Conversation } from '@/lib/gmail/conversations'
+import { readDemoSwitch, type IdeaRow } from '@/lib/agents/store'
 import { fetchGscPageTraffic, fetchGscTopQueries } from '@/lib/modules/seo/keyword-fetchers'
+import type { LeadList, ThreadList, ToolLead, ToolThread } from '@/lib/mcp/tools/inbox'
+import { askTool } from './tools'
 import { getSitemap } from '@/lib/modules/content-audit/fetcher'
 import { CARD_IDS, type Answer, type AskCards, type CardId } from './types'
 import { norm, section } from './urls'
@@ -46,14 +49,14 @@ const INTENT: Record<string, string> = {
   objection: 'has a concern', later: 'said later', other: 'replied',
 }
 const INTENT_ORDER = ['meeting', 'interested', 'question', 'objection', 'other', 'later']
-const who = (c: Conversation) => c.toName || c.toEmail || 'Someone'
+const who = (c: ToolThread) => c.to || c.email || 'Someone'
 
-export function repliesCard(convs: Conversation[], at: string): Answer {
+export function repliesCard(threads: ToolThread[], at: string): Answer {
   const since = Date.now() - REPLY_DAYS * 86_400_000
-  const replied = convs
-    .filter(c => c.status === 'replied' && (!c.repliedAt || Date.parse(c.repliedAt) >= since))
+  const replied = threads
+    .filter(c => c.status === 'replied' && (!c.replied_at || Date.parse(c.replied_at) >= since))
     .sort((a, b) => INTENT_ORDER.indexOf(a.intent ?? 'other') - INTENT_ORDER.indexOf(b.intent ?? 'other')
-      || Date.parse(b.repliedAt ?? '0') - Date.parse(a.repliedAt ?? '0'))
+      || Date.parse(b.replied_at ?? '0') - Date.parse(a.replied_at ?? '0'))
   const base = { id: 'replies' as const, question: 'Did anyone reply?', source: 'Emails GrowJin sent, checked for replies every morning', at }
   if (!replied.length) {
     return {
@@ -63,19 +66,19 @@ export function repliesCard(convs: Conversation[], at: string): Answer {
     }
   }
   const [a, b] = replied
-  const line = (c: Conversation) => `**${who(c)}** ${INTENT[c.intent ?? 'other'] ?? 'replied'}`
+  const line = (c: ToolThread) => `**${who(c)}** ${INTENT[c.intent ?? 'other'] ?? 'replied'}`
   const say = replied.length === 1 ? `${line(a)}.`
     : replied.length === 2 ? `${line(a)}, and ${line(b)}.`
     : `${line(a)}, ${line(b)}, and ${plural(replied.length - 2, 'more person', 'more people')} replied.`
   return {
     ...base, number: String(replied.length), numberLabel: replied.length === 1 ? 'reply' : 'replies', state: 'ok', say,
-    picture: { kind: 'list', rows: replied.slice(0, 5).map(c => ({ name: who(c), note: c.note ? `“${cut(c.note, 70)}”` : INTENT[c.intent ?? 'other'] ?? 'replied' })) },
+    picture: { kind: 'list', rows: replied.slice(0, 5).map(c => ({ name: who(c), note: c.says ? `“${cut(c.says, 70)}”` : INTENT[c.intent ?? 'other'] ?? 'replied' })) },
     pictureTitle: `Replies, last ${REPLY_DAYS} days`,
     finds: [],
     next: {
       title: `Answer ${who(a)}`,
-      why: a.note ? `They wrote: “${cut(a.note, 90)}”` : `Re: ${a.subject}`,
-      label: 'Open the reply', href: '/gmail-hub?tab=inbox', panel: { kind: 'reply', threadId: a.threadId },
+      why: a.says ? `They wrote: “${cut(a.says, 90)}”` : `Re: ${a.subject}`,
+      label: 'Open the reply', href: '/gmail-hub?tab=inbox', panel: { kind: 'reply', threadId: a.thread_id },
     },
     then: replied.length > 1 ? [{ title: replied.length === 2 ? who(b) : `${who(b)} and ${replied.length - 2} more`, why: 'In the Inbox, replies first' }] : [],
   }
@@ -83,16 +86,18 @@ export function repliesCard(convs: Conversation[], at: string): Answer {
 
 // ── Who should I email today? ────────────────────────────────────────────────
 
-const isPost = (l: Lead) => l.source === 'reddit' || l.source === 'forum'
-const nameOf = (l: Lead) => (l.source === 'profile' ? l.title : l.name || l.company || l.title)
+const nameOf = (l: ToolLead) => l.name
+const everLeads = (r: LeadList) => Object.values(r.counts ?? {}).reduce((a, b) => a + b, 0)
 
-export function emailCard(leads: Lead[], lastRunAt: string | undefined, at: string): Answer {
-  const ready = leads.filter(l => !isPost(l) && l.status === 'ready').sort((a, b) => b.score - a.score)
-  const noEmail = leads.filter(l => !isPost(l) && l.status === 'needs_contact').length
+/** list: list_leads { status: to_do, lane: email } (best first). */
+export function emailCard(list: LeadList, at: string): Answer {
+  const ready = (list.leads ?? []).filter(l => !l.needs_email)
+  const noEmail = (list.leads ?? []).filter(l => l.needs_email).length
+  const lastRunAt = list.last_search?.at
   const base = { id: 'email' as const, question: 'Who should I email today?', at, numberLabel: 'ready for your OK',
     source: lastRunAt ? `Lead Finder · last search ${ago(lastRunAt)}` : 'Lead Finder' }
   if (!ready.length) {
-    const never = !leads.length && !lastRunAt
+    const never = !everLeads(list) && !lastRunAt
     return {
       ...base, number: '0', state: 'empty',
       say: never ? 'No leads yet. Lead Finder looks for businesses that fit what you sell and writes the first email for you.'
@@ -107,12 +112,12 @@ export function emailCard(leads: Lead[], lastRunAt: string | undefined, at: stri
   return {
     ...base, number: String(ready.length), state: 'ok',
     say: `**${plural(ready.length, 'email')}** ${ready.length === 1 ? 'is' : 'are'} ready for your OK. Start with **${nameOf(top)}**${why ? `: ${lowerFirst(why)}${/[!?…]$/.test(why) ? '' : '.'}` : '.'}`,
-    picture: { kind: 'list', rows: ready.slice(0, 5).map(l => ({ name: nameOf(l), note: l.fitLabel ? `${l.fitLabel} · ${cut(l.why, 50)}` : cut(l.why, 60) })) },
+    picture: { kind: 'list', rows: ready.slice(0, 5).map(l => ({ name: nameOf(l), note: l.rating ? `${l.rating} · ${cut(l.why, 50)}` : cut(l.why, 60) })) },
     pictureTitle: 'Ready for your OK',
     finds: [],
     next: {
       title: `Review ${nameOf(top)}’s email`,
-      why: top.draft ? 'Written and ready. Approve, change or skip.' : 'It’s written when you open it. Approve, change or skip.',
+      why: top.email_draft ? 'Written and ready. Approve, change or skip.' : 'It’s written when you open it. Approve, change or skip.',
       label: 'Review the email', href: `/leads?lead=${encodeURIComponent(top.id)}`, panel: { kind: 'lead', id: top.id, lane: 'email' },
     },
     then: [
@@ -369,12 +374,15 @@ const TOPIC_OPEN = ['drafted', 'writing', 'picked']
 const level = (d: number | null) => (d == null || d === 0 ? 'difficulty unknown' : d < 15 ? 'easy' : d < 30 ? 'fairly easy' : d < 50 ? 'medium' : 'hard')
 const perMonth = (n: number) => `${n.toLocaleString('en')} a month`
 
-export function postCard(search: SearchAgentData | null, at: string): Answer {
-  const base = { id: 'post' as const, question: 'What should I write this week?', at, source: search?.lastResearchAt ? `Search Agent · research ${ago(search.lastResearchAt)}` : 'Search Agent' }
-  const open = (search?.topics ?? []).filter(t => TOPIC_OPEN.includes(t.status))
+/** What get_search_agent { section: topics } answers. */
+export interface TopicsResult { set_up?: boolean; last_research_at?: string | null; starting_keywords?: string[]; topics?: { keyword: string; kind: string; status: string; volume: number; difficulty: number | null; why: string; blog_id?: string; page_to_rewrite?: string }[]; error?: string }
+
+export function postCard(search: TopicsResult, at: string): Answer {
+  const base = { id: 'post' as const, question: 'What should I write this week?', at, source: search.last_research_at ? `Search Agent · research ${ago(search.last_research_at)}` : 'Search Agent' }
+  const open = (search.topics ?? []).filter(t => TOPIC_OPEN.includes(t.status))
     .sort((a, b) => TOPIC_OPEN.indexOf(a.status) - TOPIC_OPEN.indexOf(b.status) || b.volume - a.volume)
   if (!open.length) {
-    const never = !search?.lastResearchAt
+    const never = !search.last_research_at
     return {
       ...base, number: '0', numberLabel: 'posts to write', state: 'empty',
       say: never ? 'The Search Agent hasn’t researched your market yet. It finds what your buyers search for and drafts posts for you.'
@@ -404,16 +412,13 @@ export function postCard(search: SearchAgentData | null, at: string): Answer {
 // ── Where should I talk about {brand}? ───────────────────────────────────────
 // Reddit and Hacker News posts Lead Finder found asking for a tool like yours, waiting for a reply.
 
-const where = (l: Lead) => {
-  if (l.source === 'forum') return 'Hacker News'
-  const sub = /reddit\.com\/(r\/[^/]+)/i.exec(l.url)?.[1]
-  return sub ?? 'Reddit'
-}
+const where = (l: ToolLead) => l.from
 
-export function talkCard(leads: Lead[], brandName: string, at: string): Answer {
-  const posts = leads.filter(isPost)
-  const ready = posts.filter(l => l.status === 'ready').sort((a, b) => b.score - a.score)
-  const posted = posts.filter(l => l.status === 'posted').length
+/** list: list_leads { status: to_do, lane: talk } (best first). */
+export function talkCard(list: LeadList, brandName: string, at: string): Answer {
+  const ready = list.leads ?? []
+  const posted = list.counts?.posted ?? 0
+  const posts = { length: ready.length + posted }
   const base = { id: 'talk' as const, question: `Where should I talk about ${brandName}?`, at, source: 'Lead Finder · Reddit and Hacker News' }
   if (!ready.length) {
     return {
@@ -428,8 +433,8 @@ export function talkCard(leads: Lead[], brandName: string, at: string): Answer {
   const top = ready[0]
   return {
     ...base, number: String(ready.length), numberLabel: ready.length === 1 ? 'thread to reply to' : 'threads to reply to', state: 'ok',
-    say: `**${plural(ready.length, 'thread')}** ${ready.length === 1 ? 'asks' : 'ask'} for a tool like yours. Start with **${where(top)}**: “${cut(top.title, 80)}”${/[?!…]$/.test(cut(top.title, 80)) ? '' : '.'}`,
-    picture: { kind: 'list', rows: ready.slice(0, 5).map(l => ({ name: cut(l.title, 70), note: where(l) })) },
+    say: `**${plural(ready.length, 'thread')}** ${ready.length === 1 ? 'asks' : 'ask'} for a tool like yours. Start with **${where(top)}**: “${cut(top.name, 80)}”${/[?!…]$/.test(cut(top.name, 80)) ? '' : '.'}`,
+    picture: { kind: 'list', rows: ready.slice(0, 5).map(l => ({ name: cut(l.name, 70), note: where(l) })) },
     pictureTitle: 'Worth a reply',
     finds: [
       'Answer the question fully first; mention your product only where it really helps, and say you built it.',
@@ -443,9 +448,16 @@ export function talkCard(leads: Lead[], brandName: string, at: string): Answer {
 // ── Which search words can I win? ────────────────────────────────────────────
 // Keyword ideas from the Search Agent's last research that fit your buyers and are easy (< 30).
 
-export function keysCard(search: SearchAgentData | null, at: string): Answer {
-  const rows = search?.ideas?.rows ?? []
-  const base = { id: 'keys' as const, question: 'Which search words can I win?', at, source: search?.ideas?.at ? `Search Agent keyword research · ${ago(search.ideas.at)}` : 'Search Agent keyword research' }
+/** What get_search_agent { section: ai_answers } answers (the parts the visibility score uses). */
+export interface AiResult { answers?: AiRow[]; error?: string }
+export interface AiRow { named: boolean; asked_times?: number; named_times?: number; error?: string }
+
+/** What get_search_agent { section: keywords } answers. */
+export interface KeywordsResult { ideas_at?: string | null; ideas?: IdeaRow[]; error?: string }
+
+export function keysCard(search: KeywordsResult, at: string): Answer {
+  const rows = search.ideas ?? []
+  const base = { id: 'keys' as const, question: 'Which search words can I win?', at, source: search.ideas_at ? `Search Agent keyword research · ${ago(search.ideas_at)}` : 'Search Agent keyword research' }
   const win = rows.filter(r => (r.verdict === 'picked' || r.verdict === 'fit') && r.difficulty != null && r.difficulty > 0 && r.difficulty < 30 && r.volume > 0)
     .sort((a, b) => b.volume - a.volume)
   if (!win.length) {
@@ -483,10 +495,10 @@ export interface Week { impressions: number; clicks: number }
 const pct = (now: number, before: number) => (before ? Math.round(((now - before) / before) * 100) : null)
 const signed = (n: number | null) => (n == null ? '' : n > 0 ? `+${n}%` : `${n}%`)
 
-export function trackCard(gsc: { now: Week; before: Week } | 'connect' | 'failed', leads: Lead[], convs: Conversation[], at: string): Answer {
+export function trackCard(gsc: { now: Week; before: Week } | 'connect' | 'failed', threads: ToolThread[], at: string): Answer {
   const weekAgo = Date.now() - 7 * 86_400_000
-  const sent = leads.filter(l => l.sentAt && Date.parse(l.sentAt) >= weekAgo).length
-  const replied = convs.filter(c => c.status === 'replied' && c.repliedAt && Date.parse(c.repliedAt) >= weekAgo).length
+  const sent = threads.filter(c => c.sent_at && Date.parse(c.sent_at) >= weekAgo).length
+  const replied = threads.filter(c => c.status === 'replied' && c.replied_at && Date.parse(c.replied_at) >= weekAgo).length
   const base = { id: 'track' as const, question: 'Am I on track?', at }
   const mail = [{ value: String(sent), label: 'emails sent' }, { value: String(replied), label: replied === 1 ? 'reply' : 'replies' }]
   if (gsc === 'connect' || gsc === 'failed') {
@@ -527,21 +539,16 @@ export function trackCard(gsc: { now: Week; before: Week } | 'connect' | 'failed
   }
 }
 
-async function trackFetch(brandId: string, websiteUrl: string): Promise<{ now: Week; before: Week } | 'connect' | 'failed'> {
-  const meta = await gscKey(brandId)
-  if (!meta) return 'connect'
-  const sum = (rows: { clicks: number; impressions: number }[] | null): Week =>
-    (rows ?? []).reduce((w, r) => ({ impressions: w.impressions + Math.round(r.impressions), clicks: w.clicks + Math.round(r.clicks) }), { impressions: 0, clicks: 0 })
-  try {
-    const [now, before] = await Promise.all([
-      fetchGscPageTraffic(meta.client_email, meta.private_key, websiteUrl, 7, 2),
-      fetchGscPageTraffic(meta.client_email, meta.private_key, websiteUrl, 7, 9),
-    ])
-    return { now: sum(now), before: sum(before) }
-  } catch (e) {
-    console.error('[ask] search console (track)', e)
-    return 'failed'
+/** This week and last from get_daily_numbers (Search Console, both weeks ending on its latest day). */
+async function trackFetch(brandId: string): Promise<{ now: Week; before: Week } | 'connect' | 'failed'> {
+  const d = await askTool<{ google_search?: { clicks_last_7d?: number; clicks_previous_7d?: number; impressions_last_7d?: number; impressions_previous_7d?: number }; not_available?: Record<string, string> }>(brandId, 'get_daily_numbers')
+  const g = d.google_search
+  if (g?.impressions_last_7d != null) {
+    return { now: { impressions: g.impressions_last_7d, clicks: g.clicks_last_7d ?? 0 }, before: { impressions: g.impressions_previous_7d ?? 0, clicks: g.clicks_previous_7d ?? 0 } }
   }
+  if (g) return { now: { impressions: 0, clicks: 0 }, before: { impressions: 0, clicks: 0 } }   // connected, no searches yet
+  const why = d.not_available?.google_search ?? d.error ?? ''
+  return /isn.t connected|not connected|no property|can.t see/i.test(why) ? 'connect' : 'failed'
 }
 
 // ── Fill, save, read ─────────────────────────────────────────────────────────
@@ -591,9 +598,20 @@ export async function fillCards(brandId: string, onStep: OnStep = () => {}): Pro
     const at = new Date().toISOString()
     const [brand] = await db.select({ name: brands.name, websiteUrl: brands.websiteUrl, keywords: brands.keywords }).from(brands).where(eq(brands.id, brandId)).limit(1)
     onStep({ id: 'read', text: 'Reading your emails, leads and research', state: 'on' })
-    const [convs, lead, search] = await Promise.all([listConversations(brandId).catch(() => []), readLeadData(brandId), readSearchData(brandId)])
-    onStep({ id: 'read', text: 'Reading your emails, leads and research', state: 'done', result: `${convs.length} email threads · ${(lead?.leads ?? []).length} leads` })
-    const leads = lead?.leads ?? []
+    // Everything through the MCP tools. The Search Agent calls go one after another (each tidies its data first)
+    const [threads, emailLeads, talkLeads, search] = await Promise.all([
+      askTool<ThreadList>(brandId, 'list_replies', { show: 'all', limit: 100 }),
+      askTool<LeadList>(brandId, 'list_leads', { status: 'to_do', lane: 'email', limit: 100 }),
+      askTool<LeadList>(brandId, 'list_leads', { status: 'to_do', lane: 'talk', limit: 100 }),
+      (async () => {
+        const topics = await askTool<TopicsResult>(brandId, 'get_search_agent', { section: 'topics', limit: '50' })
+        const keywords = await askTool<KeywordsResult>(brandId, 'get_search_agent', { section: 'keywords', limit: '100' })
+        const ai = await askTool<AiResult>(brandId, 'get_search_agent', { section: 'ai_answers', limit: '100' })
+        return { topics, keywords, ai }
+      })(),
+    ])
+    const leadCount = Object.values(emailLeads.counts ?? {}).reduce((a, b) => a + b, 0)
+    onStep({ id: 'read', text: 'Reading your emails, leads and research', state: 'done', result: `${threads.threads?.length ?? 0} email threads · ${leadCount} leads` })
     const site = brand?.websiteUrl ?? ''
     const name = brand?.name ?? 'your business'
     const google = googleData(brandId, site)   // shared by the Google and visibility cards
@@ -610,8 +628,8 @@ export async function fillCards(brandId: string, onStep: OnStep = () => {}): Pro
       }
     }
     const settled = await Promise.allSettled([
-      step('replies', () => repliesCard(convs, at)),
-      step('email', () => emailCard(leads, lead?.lastRunAt, at)),
+      step('replies', () => repliesCard(threads.threads ?? [], at)),
+      step('email', () => emailCard(emailLeads, at)),
       step('google', async () => googleFromData(await google, at)),
       step('seen', async () => {
         const gd = await google
@@ -619,14 +637,14 @@ export async function fillCards(brandId: string, onStep: OnStep = () => {}): Pro
         const [homepage, links] = await Promise.all([readHomepageCheck(gd.origin), linkingSites(brandId, domain)])
         return visibilityAnswer({
           at, brandName: name, google: gd, googleAnswer: gd.state === 'ok' ? googleFromData(gd, at) : null, homepage,
-          mainWords: search?.settings.seeds?.length ? search.settings.seeds : (brand?.keywords ?? '').split(',').map(k => k.trim()).filter(Boolean),
-          search, leads, links,
+          mainWords: search.topics.starting_keywords?.length ? search.topics.starting_keywords : (brand?.keywords ?? '').split(',').map(k => k.trim()).filter(Boolean),
+          ai: search.ai.answers ?? [], posted: talkLeads.counts?.posted ?? 0, links,
         })
       }),
-      step('post', () => postCard(search, at)),
-      step('talk', () => talkCard(leads, name, at)),
-      step('keys', () => keysCard(search, at)),
-      step('track', () => trackFetch(brandId, site).then(g => trackCard(g, leads, convs, at))),
+      step('post', () => postCard(search.topics, at)),
+      step('talk', () => talkCard(talkLeads, name, at)),
+      step('keys', () => keysCard(search.keywords, at)),
+      step('track', () => trackFetch(brandId).then(g => trackCard(g, threads.threads ?? [], at))),
     ])
     const cards = settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : (console.error('[ask] card failed', r.reason), [])))
     const out: AskCards = { at, cards: cards.sort((a, b) => ORDER.indexOf(a.id as CardId) - ORDER.indexOf(b.id as CardId)) }

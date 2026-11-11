@@ -14,6 +14,10 @@ import { readMcpSendPermission } from '@/lib/mcp/gmail-permission'
 // outreach_emails (source 'claude'), so they show in Email Outreach and count as contacted.
 
 const SOURCE = 'claude'
+// Sent from Ask: the person pressed Send themselves, so the "Let Claude send email" switch doesn't apply;
+// Lead Finder's own daily limit does instead.
+const ASK_SOURCE = 'ask'
+type Via = 'mcp' | 'ask'
 const MAX_BATCH = 20
 const SEND_SCOPES = ['https://www.googleapis.com/auth/gmail.send', 'https://www.googleapis.com/auth/gmail.compose', 'https://www.googleapis.com/auth/gmail.modify', 'https://mail.google.com/']
 const SETTINGS_URL = '/settings?tab=claude-code'
@@ -32,9 +36,9 @@ async function gmailRow(brandId: string) {
   return row ?? null
 }
 
-async function sentByClaudeToday(brandId: string): Promise<number> {
+async function sentByClaudeToday(brandId: string, via: Via = 'mcp'): Promise<number> {
   const rows = await db.select({ id: outreachEmails.id }).from(outreachEmails)
-    .where(and(eq(outreachEmails.brandId, brandId), eq(outreachEmails.source, SOURCE), gte(outreachEmails.sentAt, startOfDay())))
+    .where(and(eq(outreachEmails.brandId, brandId), eq(outreachEmails.source, via === 'ask' ? ASK_SOURCE : SOURCE), gte(outreachEmails.sentAt, startOfDay())))
     .catch(() => [])
   return rows.length
 }
@@ -50,8 +54,9 @@ interface Status {
   problem: string | null
 }
 
-async function status(brandId: string): Promise<Status> {
-  const [row, perm, sent] = await Promise.all([gmailRow(brandId), readMcpSendPermission(brandId), sentByClaudeToday(brandId)])
+async function status(brandId: string, via: Via = 'mcp'): Promise<Status> {
+  const [row, mcpPerm, sent, leadData] = await Promise.all([gmailRow(brandId), readMcpSendPermission(brandId), sentByClaudeToday(brandId, via), via === 'ask' ? readLeadData(brandId).catch(() => null) : null])
+  const perm = via === 'ask' ? { on: true, dailyLimit: leadData?.settings.dailyLimit ?? 15 } : mcpPerm
   const address = (row?.metadata as { gmail_address?: string } | null)?.gmail_address ?? null
   let problem: string | null = null
   let connected = !!row?.accessToken && row.status === 'connected'
@@ -72,23 +77,23 @@ async function status(brandId: string): Promise<Status> {
   }
 }
 
-export async function gmailStatus(brandId: string) {
-  const s = await status(brandId)
+export async function gmailStatus(brandId: string, via: Via = 'mcp') {
+  const s = await status(brandId, via)
   return {
     ...s,
     ready_to_send: s.can_send && s.sending_allowed && s.left_today > 0,
-    ...(s.can_send && s.sending_allowed && s.left_today === 0 ? { problem: `Today's limit of ${s.daily_limit} emails sent by Claude is reached. More can go out tomorrow (UTC).` } : {}),
+    ...(s.can_send && s.sending_allowed && s.left_today === 0 ? { problem: `Today's limit of ${s.daily_limit} emails sent${via === 'ask' ? '' : ' by Claude'} is reached. More can go out tomorrow (UTC).` } : {}),
   }
 }
 
 interface Mail { to: string; subject: string; body: string; thread_id?: string; in_reply_to?: string; follow_up_days?: number }
 
-export async function sendEmail(brandId: string, args: Record<string, unknown>) {
+export async function sendEmail(brandId: string, args: Record<string, unknown>, via: Via = 'mcp') {
   const raw: unknown[] = Array.isArray(args.emails) ? args.emails : [args]
   if (!raw.length) return { error: 'Give to, subject and body (or emails: a list of them).' }
   if (raw.length > MAX_BATCH) return { error: `At most ${MAX_BATCH} emails per call.` }
 
-  const s = await status(brandId)
+  const s = await status(brandId, via)
   if (!s.can_send || !s.sending_allowed) return { sent: 0, error: s.problem, connected: s.connected, sending_allowed: s.sending_allowed }
 
   const mails: (Mail & { problem?: string })[] = raw.map(r => {
@@ -128,7 +133,7 @@ export async function sendEmail(brandId: string, args: Record<string, unknown>) 
       left -= 1
       await db.insert(outreachEmails).values({
         brandId, toEmail: addr, toName: parseRecipientName(m.to) ?? lead?.name ?? null, subject, body: html, status: 'sent', sentAt: new Date(),
-        gmailMessageId: sent.id, gmailThreadId: sent.threadId, source: SOURCE,
+        gmailMessageId: sent.id, gmailThreadId: sent.threadId, source: via === 'ask' ? ASK_SOURCE : SOURCE,
       }).catch(e => console.error('[mcp send_email] could not save the sent email:', e instanceof Error ? e.message : e))
       await markOutreachDrafts(brandId, addr, 'sent').catch(() => {})
       if (lead && b) {

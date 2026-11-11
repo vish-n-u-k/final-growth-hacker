@@ -26,6 +26,7 @@ import { apify } from '@/lib/mcp/tools/apify'
 import { logWork, listWork, updateWork, deleteWork } from '@/lib/mcp/tools/work_log'
 import { getLeadSettings, checkContacts, saveLeads } from '@/lib/mcp/tools/leads'
 import { gmailStatus, sendEmail } from '@/lib/mcp/tools/gmail'
+import { listLeads, listReplies } from '@/lib/mcp/tools/inbox'
 import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
 import { resolveSignal } from '@/lib/signals'
 import { getBlogPost, markBlogPublished } from '@/lib/mcp/tools/blog_posts'
@@ -35,10 +36,14 @@ import { getWeeklyReview } from '@/lib/mcp/tools/weekly_review'
 import { createSocialPost, getSocialPostStatus, scheduleSocialPost } from '@/lib/frekto/posts'
 import { saveProof } from '@/lib/proofs'
 
+/** Who's calling: Claude through the MCP server (default), or Ask, where the person pressed the button themselves. */
+export interface DispatchContext { via?: 'mcp' | 'ask' }
+
 export async function dispatch(
   name: string,
   args: Record<string, unknown>,
   brandId: string,
+  ctx: DispatchContext = {},
 ): Promise<unknown> {
   switch (name) {
     case 'get_growth_overview':
@@ -204,11 +209,17 @@ export async function dispatch(
     case 'save_leads':
       return saveLeads(brandId, args)
 
+    case 'list_leads':
+      return listLeads(brandId, args)
+
+    case 'list_replies':
+      return listReplies(brandId, args)
+
     case 'gmail_status':
-      return gmailStatus(brandId)
+      return gmailStatus(brandId, ctx.via ?? 'mcp')
 
     case 'send_email':
-      return sendEmail(brandId, args)
+      return sendEmail(brandId, args, ctx.via ?? 'mcp')
 
     case 'log_work':
       return logWork(brandId, args)

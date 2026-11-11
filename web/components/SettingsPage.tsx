@@ -1146,6 +1146,8 @@ const MCP_TOOLS = [
   { name: 'get_lead_settings', desc: 'Who Lead Finder looks for: your brief, ideal customer and sending settings' },
   { name: 'check_contacts', desc: 'Whether people or companies were already emailed, are already leads, or opted out' },
   { name: 'save_leads', desc: 'Add leads Claude found to Lead Finder, ready for you to approve' },
+  { name: 'list_leads', desc: 'The leads on your Lead Finder board, with why they fit and what was written for them' },
+  { name: 'list_replies', desc: 'Who replied to emails GrowJin sent, and follow-ups that are due' },
   { name: 'gmail_status', desc: 'Whether Gmail is connected and Claude may send from it' },
   { name: 'send_email', desc: 'Send an email from your Gmail (only when you allow it below)' },
 ]

@@ -561,6 +561,36 @@ export const TOOLS: MCPTool[] = [
     inputSchema: { type: 'object', properties: {} },
   },
   {
+    name: 'list_leads',
+    description: 'Lists the leads on the user\'s Lead Finder board in GrowJin, best first: who they are, why they fit, their email (or the page to message them on), the email or reply GrowJin wrote for them (written when a lead is first opened; empty until then), and where they are (to_do, queued, sent, replied, posted, skipped, closed). Use for "who should I email today?", "which leads are waiting?", "who did I email?", "what did they say?". status: to_do (default), queued, sent, replied, posted, skipped, closed or all. lane: email (people to email or message), talk (Reddit / Hacker News posts to reply to) or all. search: text in the name, site, email or why. lead_id: one lead in full (with the whole draft). include_text: true for full drafts in the list. limit default 20, max 100. Read-only: to email a lead use send_email (a first email to a lead on the board is sent as that lead).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', description: 'to_do, queued, sent, replied, posted, skipped, closed or all. Defaults to to_do.' },
+        lane: { type: 'string', description: 'email, talk or all. Defaults to all.' },
+        search: { type: 'string', description: 'Optional. Text to look for in the name, website, email or why.' },
+        lead_id: { type: 'string', description: 'Optional. One lead, in full.' },
+        include_text: { type: 'boolean', description: 'Optional. Full email and reply drafts in the list.' },
+        limit: { type: 'number', description: 'Max leads. Defaults to 20, max 100.' },
+      },
+    },
+  },
+  {
+    name: 'list_replies',
+    description: 'Who replied to emails GrowJin sent (Lead Finder, campaigns, follow-ups, pitches), newest first, with what the reply says and what it is (meeting, interested, question, objection, later, other). Only threads GrowJin sent; the rest of the mailbox is never read. show: replies (default, last `days` days, default 14; include_answered: true adds ones already marked answered), due (no reply and the follow-up is due), or all (every thread with its status). thread_id: read one thread\'s last messages (messages, default 4), each with message_id; to answer, call send_email with that thread_id, in_reply_to = the last message_id that isn\'t yours, and the same subject with "Re: ". Read-only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        show: { type: 'string', description: 'replies, due or all. Defaults to replies.' },
+        days: { type: 'number', description: 'For replies: how far back. Defaults to 14, max 90.' },
+        include_answered: { type: 'boolean', description: 'For replies: also ones already marked answered.' },
+        thread_id: { type: 'string', description: 'Optional. Read this thread\'s messages.' },
+        messages: { type: 'number', description: 'With thread_id: how many of the last messages. Defaults to 4.' },
+        limit: { type: 'number', description: 'Max threads. Defaults to 20, max 100.' },
+      },
+    },
+  },
+  {
     name: 'send_email',
     description:
       'Sends email from the user\'s connected Gmail through GrowJin. Works only when gmail_status says ready_to_send (Gmail connected with send permission AND the user switched on "Let Claude send email" in GrowJin Settings); otherwise nothing is sent and the answer says what is missing. ALWAYS show the user the exact recipient, subject and body first and send only after they say yes in this conversation. Never send to addresses check_contacts reports as opted_out or bounced (GrowJin refuses those anyway); check new people with check_contacts first. One email (to, subject, body) or several with emails (up to 20; within the daily limit). body: plain text (blank line = new paragraph) or simple HTML. To reply in a thread give thread_id (and in_reply_to, the Message-ID header) and the same subject. follow_up_days (optional) adds a follow-up reminder in GrowJin. A first email to someone already on the Lead Finder board is sent as that lead (an opt-out line is added; its automatic follow-ups and reply check take over). Sent emails show in Email Outreach and count as contacted. Returns per email sent / not_sent with the reason, and thread_id.',

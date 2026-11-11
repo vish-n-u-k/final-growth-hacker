@@ -6,11 +6,10 @@
 
 import * as cheerio from 'cheerio'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
-import { addUsage, type Lead, type SearchAgentData, type UsageMeter } from '@/lib/agents/store'
-import { referringDomains } from '@/lib/agents/dataforseo'
+import { askTool } from './tools'
 import { brandedQueryMatcher } from '@/lib/modules/seo/keyword-fetchers'
 import { fetchPage } from '@/lib/modules/brand-audit/fetcher'
-import type { GoogleData } from './cards'
+import type { AiRow, GoogleData } from './cards'
 import { norm, section } from './urls'
 import { NEW_SITE_DAYS } from './indexing'
 import type { Answer, NextStep, Picture } from './types'
@@ -27,8 +26,8 @@ export interface VisibilityInput {
   googleAnswer: Answer | null     // the Google card: its next step is the fix for pages / thin pages / sitemap
   homepage: HomepageCheck | null
   mainWords: string[]             // what buyers search (the Search Agent's starting keywords)
-  search: SearchAgentData | null
-  leads: Lead[]
+  ai: AiRow[]                      // get_search_agent ai_answers: each answer, named or not
+  posted: number                  // Reddit / Hacker News replies posted (list_leads counts)
   links: number | null            // sites linking to the site (DataForSEO, weekly); null = unknown
 }
 
@@ -113,13 +112,13 @@ export function visibilityChecks(v: VisibilityInput): Check[] {
 
   checks.push({
     id: 'links', group: 'Google', label: 'Sites linking to you', weight: 2,
-    value: v.links == null ? 'Not checked yet' : `${v.links >= 100 ? '100+' : v.links}${v.links < 15 ? ' (aim for 10–15 in your first weeks)' : ''}`,
+    value: v.links == null ? 'Not checked yet' : `${v.links.toLocaleString('en')}${v.links < 15 ? ' (aim for 10–15 in your first weeks)' : ''}`,
     state: v.links == null ? 'unknown' : v.links >= 30 ? 'good' : v.links >= 10 ? 'warn' : 'bad',
     why: 'Links from trusted sites are the biggest reason Google and AI tools trust a new site.',
   })
 
-  const items = v.search?.answers?.items?.filter(i => !i.error) ?? []
-  const named = items.filter(i => i.mentioned || (i.samples ? (i.hits ?? 0) / i.samples >= 0.5 : false)).length
+  const items = v.ai.filter(i => !i.error)
+  const named = items.filter(i => i.named || (i.asked_times ? (i.named_times ?? 0) / i.asked_times >= 0.5 : false)).length
   checks.push({
     id: 'ai', group: 'AI answers', label: 'Named when people ask AI tools', weight: 3,
     value: !items.length ? 'Not checked yet: the Search Agent asks every week' : `Named in ${named} of ${plural(items.length, 'answer')}`,
@@ -127,7 +126,7 @@ export function visibilityChecks(v: VisibilityInput): Check[] {
     why: 'ChatGPT and others recommend what trusted lists, reviews and Reddit name. Being on those gets you recommended.',
   })
 
-  const posted = v.leads.filter(l => (l.source === 'reddit' || l.source === 'forum') && l.status === 'posted').length
+  const posted = v.posted
   checks.push({
     id: 'community', group: 'AI answers', label: 'Helpful replies on Reddit and Hacker News', weight: 1,
     value: posted ? `${plural(posted, 'reply', 'replies')} posted` : 'None yet',
@@ -255,15 +254,15 @@ export async function linkingSites(brandId: string, domain: string): Promise<num
   if (!domain) return null
   const saved = await getSnapshot<{ at: string; domain: string; count: number }>(brandId, LINKS_KEY)
   if (saved && saved.domain === domain && Date.now() - Date.parse(saved.at) < WEEK) return saved.count
-  const meter: UsageMeter = { dataforseo: 0, hunter: 0, apis: {} }
-  try {
-    const count = (await referringDomains(domain, meter, 100)).length
-    await saveSnapshot(brandId, LINKS_KEY, { at: new Date().toISOString(), domain, count })
-    return count
-  } catch (e) {
-    console.error('[ask] linking sites', e)
+  // Through the dataforseo tool (spend shows in Usage like any tool call): DataForSEO's backlink summary
+  const r = await askTool<{ response?: { tasks?: { result?: { referring_domains?: number }[] }[] } }>(brandId, 'dataforseo', {
+    endpoint: 'backlinks/summary/live', payload: { target: domain, include_subdomains: true },
+  })
+  const count = r.response?.tasks?.[0]?.result?.[0]?.referring_domains
+  if (r.error || typeof count !== 'number') {
+    console.error('[ask] linking sites', r.error ?? 'no count in the answer')
     return saved?.count ?? null
-  } finally {
-    await addUsage(brandId, meter, 'Ask').catch(() => {})
   }
+  await saveSnapshot(brandId, LINKS_KEY, { at: new Date().toISOString(), domain, count })
+  return count
 }

@@ -159,6 +159,8 @@ export async function getDailyNumbers(brandId: string) {
         clicks_last_7d: window(gsc.data.clicks, last, 7).reduce((a, b) => a + b, 0),
         clicks_previous_7d: window(gsc.data.clicks, addDays(last, -7), 7).reduce((a, b) => a + b, 0),
         impressions: compareDay(gsc.data.impressions, last),
+        impressions_last_7d: window(gsc.data.impressions, last, 7).reduce((a, b) => a + b, 0),
+        impressions_previous_7d: window(gsc.data.impressions, addDays(last, -7), 7).reduce((a, b) => a + b, 0),
         clicks_last_14_days: window(gsc.data.clicks, last, 14).reverse(),
       }
     } else out.google_search = { note: 'Search Console has no search data for the last 40 days.' }
