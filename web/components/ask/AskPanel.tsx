@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Lead } from '@/lib/agents/store'
-import type { Conversation } from '@/lib/gmail/conversations'
+import type { LeadList, ThreadList, ToolLead, ToolThread } from '@/lib/mcp/tools/inbox'
 import type { IndexRow, Panel } from '@/lib/ask/types'
 import { norm } from '@/lib/ask/urls'
 
@@ -167,32 +166,43 @@ function IndexPanel({ p, onClose }: { p: Extract<Panel, { kind: 'index' }>; onCl
 const inspectHref = (property: string, url: string) =>
   `https://search.google.com/search-console/inspect?resource_id=${encodeURIComponent(property)}&id=${encodeURIComponent(url)}`
 
-// ── A lead: an email to approve, or a reply / message to post by hand ─────────
+// ── Tools: everything here reads, writes and sends through the MCP tools (POST /api/ask/tool) ─
 
-// "Next: Is Buffer still worth it?" without a full stop after the question mark
-const nextLine = (name: string) => ` Next: ${name}${/[?!.…]$/.test(name) ? '' : '.'}`
-
-const isPost = (l: Lead) => l.source === 'reddit' || l.source === 'forum'
-const isMessage = (l: Lead) => isPost(l) || l.source === 'profile' || (!l.email && !!l.dm)
-const nameOf = (l: Lead) => (isPost(l) || l.source === 'profile' ? l.title : l.name || l.company || l.title)
-const pageOf = (l: Lead) => (l.source !== 'profile' && l.dm ? l.dm.url : l.url)
-const placeOf = (l: Lead) => {
-  if (l.source === 'forum') return 'Hacker News'
-  if (l.source === 'reddit') return /reddit\.com\/(r\/[^/]+)/i.exec(l.url)?.[1] ?? 'Reddit'
-  return l.dm?.platform ?? (l.source === 'profile' ? 'their page' : '')
+export async function tool<T = Record<string, unknown>>(name: string, args: Record<string, unknown> = {}): Promise<T & { error?: string }> {
+  const r = await fetch('/api/ask/tool', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, args }) })
+  return r.json().catch(() => ({ error: 'Something went wrong. Try again.' }))
 }
+/** Claude writes the email, message or answer (POST /api/ask/write); nothing is sent or saved. */
+async function write<T>(body: Record<string, unknown>): Promise<T & { error?: string }> {
+  const r = await fetch('/api/ask/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  return r.json().catch(() => ({ error: 'Couldn’t write it this time. Try again.' }))
+}
+interface SendResult { sent?: number; error?: string; results?: { status: string; reason?: string }[] }
+const sendProblem = (r: SendResult) => (r.sent ? '' : r.results?.[0]?.reason ?? r.error ?? 'Couldn’t send it.')
 
-async function leadOp(op: string, payload: Record<string, unknown>): Promise<{ data?: { leads: Lead[] }; error?: string; message?: string; ok?: boolean }> {
+// Skip, "I posted it" and "answered" change the board, which no MCP tool does yet: Lead Finder's own API
+async function leadOp(op: string, payload: Record<string, unknown>): Promise<{ error?: string; message?: string; ok?: boolean }> {
   const r = await fetch('/api/agents/lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op, ...payload }) })
   return r.json().catch(() => ({ error: 'Something went wrong. Try again.' }))
 }
 
+// "Next: Is Buffer still worth it?" without a full stop after the question mark
+const nextLine = (name: string) => ` Next: ${name}${/[?!.…]$/.test(name) ? '' : '.'}`
+
+// ── A lead: an email to approve, or a reply / message to post by hand ─────────
+
+const isMessage = (l: ToolLead) => l.lane === 'talk' || !l.email
+const canWork = (l: ToolLead) => l.lane === 'talk' || !!l.email || !!l.message_on || l.from === 'seller page'
+const pageOf = (l: ToolLead) => l.message_on?.url ?? l.url ?? l.website ?? '#'
+const placeOf = (l: ToolLead) => (l.lane === 'talk' ? l.from : l.message_on?.platform ?? (l.from === 'seller page' ? 'their page' : ''))
+
 function LeadPanel({ start, lane, onChange, onClose }: { start: string; lane: 'email' | 'talk'; onChange: () => void; onClose: () => void }) {
-  const [leads, setLeads] = useState<Lead[] | null>(null)
+  const [leads, setLeads] = useState<ToolLead[] | null>(null)
   const [cur, setCur] = useState(start)
   const [doneIds, setDoneIds] = useState<string[]>([])
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [to, setTo] = useState('')
   const [reply, setReply] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [said, setSaid] = useState('')
@@ -200,89 +210,93 @@ function LeadPanel({ start, lane, onChange, onClose }: { start: string; lane: 'e
   const [count, setCount] = useState(0)
 
   useEffect(() => {
-    fetch('/api/agents/lead').then(r => r.json()).then(j => setLeads(j?.data?.leads ?? [])).catch(() => setError('Couldn’t load your leads.'))
-  }, [])
+    tool<LeadList>('list_leads', { status: 'to_do', lane, limit: 100, include_text: true })
+      .then(j => (j.error ? setError(j.error) : setLeads(j.leads ?? [])))
+  }, [lane])
 
-  const queue = (leads ?? []).filter(l => l.status === 'ready' && !doneIds.includes(l.id) && (lane === 'talk' ? isPost(l) : !isPost(l)))
-    .sort((a, b) => b.score - a.score)
+  const queue = (leads ?? []).filter(l => canWork(l) && !doneIds.includes(l.id))
   const lead = queue.find(l => l.id === cur) ?? queue[0] ?? null
   const position = lead ? queue.indexOf(lead) + 1 : 0
 
-  // Nothing is written until a lead is opened: write its email or message now
+  // Use what GrowJin already wrote, else Claude writes it now
   const opened = useRef<string | null>(null)
   useEffect(() => {
     if (!lead || opened.current === lead.id) return
     opened.current = lead.id
     setError('')   // the "Sent. Next: …" line stays until the next action
-    setSubject(lead.draft?.subject ?? ''); setBody(lead.draft?.body ?? ''); setReply(lead.reply ?? '')
-    const fill = (j: Awaited<ReturnType<typeof leadOp>>) => {
-      if (j.error) setError(j.error)
-      const x = j.data?.leads.find(y => y.id === lead.id)
-      if (x?.draft) { setSubject(x.draft.subject); setBody(x.draft.body) }
-      if (x?.reply) setReply(x.reply)
-    }
-    if (isMessage(lead) && !lead.reply) { setBusy('write'); leadOp('reply', { id: lead.id }).then(fill).finally(() => setBusy(null)) }
-    else if (!isMessage(lead) && lead.email && !lead.draft) { setBusy('write'); leadOp('email', { id: lead.id, email: lead.email }).then(fill).finally(() => setBusy(null)) }
+    const d = lead.email_draft as { subject: string; body?: string } | undefined
+    setSubject(d?.subject ?? ''); setBody(d?.body ?? ''); setReply(typeof lead.reply_draft === 'string' ? lead.reply_draft : '')
+    setTo(lead.contact && lead.email ? `${lead.contact} <${lead.email}>` : lead.email ?? '')
+    const have = isMessage(lead) ? !!lead.reply_draft : !!d?.body
+    if (have) return
+    setBusy('write')
+    write<{ kind?: string; subject?: string; body?: string; text?: string; to?: string }>({ lead_id: lead.id }).then(x => {
+      if (opened.current !== lead.id) return
+      if (x.error) return setError(x.error)
+      if (x.kind === 'email') { setSubject(x.subject ?? ''); setBody(x.body ?? ''); if (x.to) setTo(x.to) } else setReply(x.text ?? '')
+    }).finally(() => setBusy(null))
   }, [lead])
 
-  function next(l: Lead, msg: string) {
+  function next(l: ToolLead, msg: string) {
     onChange()
     setDoneIds(d => [...d, l.id]); setCount(c => c + 1)
     const after = queue.filter(x => x.id !== l.id)
     if (after[0]) setCur(after[0].id)
-    setSaid(`${msg}${after[0] ? nextLine(nameOf(after[0])) : ''}`)
+    setSaid(`${msg}${after[0] ? nextLine(after[0].name) : ''}`)
   }
 
-  async function approve(l: Lead) {
+  async function approve(l: ToolLead) {
     setBusy('send'); setError('')
-    const j = await leadOp('approve', { id: l.id, subject, body })
+    const r = await tool<SendResult>('send_email', { to, subject, body })
     setBusy(null)
-    if (j.error || j.ok === false) return setError(j.error ?? j.message ?? 'Couldn’t send it.')
-    next(l, j.message ?? 'Sent.')
+    const problem = sendProblem(r)
+    if (problem) return setError(problem)
+    next(l, 'Sent from your Gmail. Follow-ups go out by themselves.')
   }
-  async function skip(l: Lead) {
+  async function skip(l: ToolLead) {
     setBusy('skip'); await leadOp('skip', { id: l.id }); setBusy(null)
     next(l, 'Skipped.')
   }
-  async function posted(l: Lead) {
+  async function posted(l: ToolLead) {
     setBusy('send')
-    if (reply !== (l.reply ?? '')) await leadOp('save', { id: l.id, reply })
+    await leadOp('save', { id: l.id, reply })
     const j = await leadOp('posted', { id: l.id })
     setBusy(null)
     if (j.error) return setError(j.error)
-    next(l, isPost(l) ? 'Marked as posted.' : 'Marked as sent.')
+    next(l, l.lane === 'talk' ? 'Marked as posted.' : 'Marked as sent.')
   }
 
-  const label = lane === 'talk' ? 'Lead Finder · Join conversations' : 'Lead Finder'
+  const label = lane === 'talk' ? 'Leads · Join conversations' : 'Leads'
   if (!leads) return <div className="ask-sheet-in"><Top label={label} onClose={onClose} /><p className="ask-sheet-lede">{error || 'Opening…'}</p></div>
-  if (!lead) return <div className="ask-sheet-in"><Top label={label} onClose={onClose} /><Done text={count ? `${count} done. ${lane === 'talk' ? 'New posts are found every morning.' : 'Approved emails go out within your daily limit, with follow-ups.'}` : 'Nothing is waiting here any more.'} onClose={onClose} /></div>
+  if (!lead) return <div className="ask-sheet-in"><Top label={label} onClose={onClose} /><Done text={count ? `${count} done. ${lane === 'talk' ? 'New posts are found every morning.' : 'Emails go out within your daily limit, with follow-ups.'}` : 'Nothing is waiting here any more.'} onClose={onClose} /></div>
 
-  const facts = (lead.facts ?? []).slice(0, 4)
+  const facts = Object.entries(lead.facts ?? {}).slice(0, 4)
+  const where = placeOf(lead)
   return (
     <div className="ask-sheet-in">
       <Top label={`${label} · ${position} of ${queue.length}`} onClose={onClose} />
-      <h2 className="ask-sheet-h">{nameOf(lead)}</h2>
-      <p className="ask-sheet-lede">{[lead.fitLabel, placeOf(lead) && `on ${placeOf(lead)}`].filter(Boolean).join(' · ') || lead.why}</p>
-      {lead.why && (lead.fitLabel || placeOf(lead)) && <p className="ask-why">{lead.why}</p>}
-      {facts.length > 0 && <div className="ask-facts">{facts.map(f => <div key={f.k} className="ask-fact"><span>{f.k}</span>{f.v}</div>)}</div>}
+      <h2 className="ask-sheet-h">{lead.name}</h2>
+      <p className="ask-sheet-lede">{[lead.rating, where ? `on ${where}` : lead.from && `from ${lead.from}`].filter(Boolean).join(' · ') || lead.why}</p>
+      {lead.why && <p className="ask-why">{lead.why}</p>}
+      {facts.length > 0 && <div className="ask-facts">{facts.map(([k, v]) => <div key={k} className="ask-fact"><span>{k}</span>{v}</div>)}</div>}
 
       {isMessage(lead) ? (
         <>
           <div className="ask-mail">
-            <div className="ask-mail-to">{isPost(lead) ? 'Your reply' : `Your message on ${placeOf(lead)}`}</div>
+            <div className="ask-mail-to">{lead.lane === 'talk' ? 'Your reply' : `Your message on ${where || 'their page'}`}</div>
             <textarea aria-label="Your reply" value={busy === 'write' ? 'Writing…' : reply} onChange={e => setReply(e.target.value)} disabled={busy === 'write'} rows={8} />
           </div>
           <div className="ask-acts">
             <button type="button" className="ask-btn" disabled={!!busy || !reply} onClick={async () => setSaid((await copy(reply)) ? 'Copied. Post it from your own account.' : 'Couldn’t copy here. Select the text instead.')}>Copy</button>
-            <a className="ask-tl" href={pageOf(lead)} target="_blank" rel="noreferrer">Open {isPost(lead) ? 'the post' : 'their page'}</a>
-            <button type="button" className="ask-tl" disabled={!!busy || !reply} onClick={() => posted(lead)}>{isPost(lead) ? 'I posted it' : 'I sent it'}</button>
+            <a className="ask-tl" href={pageOf(lead)} target="_blank" rel="noreferrer">Open {lead.lane === 'talk' ? 'the post' : 'their page'}</a>
+            <button type="button" className="ask-tl" disabled={!!busy || !reply} onClick={() => posted(lead)}>{lead.lane === 'talk' ? 'I posted it' : 'I sent it'}</button>
             <button type="button" className="ask-tl ask-push" disabled={!!busy} onClick={() => skip(lead)}>Skip</button>
           </div>
         </>
       ) : (
         <>
           <div className="ask-mail">
-            <div className="ask-mail-to">To {lead.email}</div>
+            <div className="ask-mail-to">To {to}{lead.email_note ? <span className="ask-faint"> · {lead.email_note}</span> : null}</div>
             <input aria-label="Subject" className="ask-subj" value={busy === 'write' ? 'Writing…' : subject} onChange={e => setSubject(e.target.value)} disabled={busy === 'write'} />
             <textarea aria-label="Email" value={busy === 'write' ? '' : body} onChange={e => setBody(e.target.value)} disabled={busy === 'write'} rows={10} />
           </div>
@@ -301,14 +315,14 @@ function LeadPanel({ start, lane, onChange, onClose }: { start: string; lane: 'e
 
 // ── Someone replied: read it, answer it ───────────────────────────────────────
 
-interface Msg { id: string; from: string; at: string | null; body: string; isSelf: boolean }
-const REPLY_DAYS = 14
+interface Msg { from: string; at: string | null; text: string; mine: boolean }
+interface Draft { to?: string; subject?: string; body?: string; thread_id?: string; in_reply_to?: string; messages?: Msg[]; error?: string }
 
 function ReplyPanel({ start, onChange, onClose }: { start: string; onChange: () => void; onClose: () => void }) {
-  const [convs, setConvs] = useState<Conversation[] | null>(null)
+  const [threads, setThreads] = useState<ToolThread[] | null>(null)
   const [cur, setCur] = useState(start)
   const [doneIds, setDoneIds] = useState<string[]>([])
-  const [msgs, setMsgs] = useState<Msg[] | null>(null)
+  const [draft, setDraft] = useState<Draft | null>(null)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -316,80 +330,80 @@ function ReplyPanel({ start, onChange, onClose }: { start: string; onChange: () 
   const [count, setCount] = useState(0)
 
   useEffect(() => {
-    fetch('/api/gmail/conversations').then(r => r.json()).then(j => setConvs(j?.conversations ?? [])).catch(() => setError('Couldn’t load your replies.'))
+    tool<ThreadList>('list_replies', { show: 'replies', days: 14, limit: 50 })
+      .then(j => (j.error ? setError(j.error) : setThreads(j.threads ?? [])))
   }, [])
 
-  const since = Date.now() - REPLY_DAYS * 86_400_000
-  const queue = (convs ?? []).filter(c => c.status === 'replied' && !doneIds.includes(c.threadId) && (!c.repliedAt || Date.parse(c.repliedAt) >= since))
-  const conv = queue.find(c => c.threadId === cur) ?? queue[0] ?? null
+  const queue = (threads ?? []).filter(c => !doneIds.includes(c.thread_id))
+  const conv = queue.find(c => c.thread_id === cur) ?? queue[0] ?? null
 
+  // The thread's last messages and an answer Claude wrote, to edit before sending
   useEffect(() => {
     if (!conv) return
-    setMsgs(null); setText(''); setError('')
-    fetch(`/api/gmail/conversations/${conv.threadId}`).then(async r => {
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(j?.error ?? 'Couldn’t load the thread from Gmail.')
-      setMsgs(j.messages ?? [])
-    }).catch(e => { setMsgs([]); setError(e instanceof Error ? e.message : 'Couldn’t load the thread.') })
-  }, [conv?.threadId]) // eslint-disable-line react-hooks/exhaustive-deps
+    let live = true
+    setDraft(null); setText(''); setError('')
+    write<Draft>({ thread_id: conv.thread_id }).then(d => {
+      if (!live) return
+      setDraft(d); setText(d.body ?? '')
+      if (d.error) setError(d.error)
+    })
+    return () => { live = false }
+  }, [conv?.thread_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // A Lead Finder reply is marked as answered there too, so it leaves its "replied" list
-  async function handled(c: Conversation) {
-    if (c.source !== 'lead-agent') return
-    const j = await fetch('/api/agents/lead').then(r => r.json()).catch(() => null) as { data?: { leads: Lead[] } } | null
-    const l = j?.data?.leads.find(x => x.threadId === c.threadId)
+  async function handled(c: ToolThread) {
+    if (c.from !== 'lead-agent') return
+    const j = await tool<LeadList>('list_leads', { status: 'replied', limit: 100 })
+    const l = j.leads?.find(x => x.thread_id === c.thread_id)
     if (l) await leadOp('handled', { id: l.id })
   }
-  function next(c: Conversation, msg: string) {
+  function next(c: ToolThread, msg: string) {
     onChange()
-    setDoneIds(d => [...d, c.threadId]); setCount(n => n + 1)
-    const after = queue.filter(x => x.threadId !== c.threadId)
-    if (after[0]) setCur(after[0].threadId)
-    setSaid(`${msg}${after[0] ? nextLine(after[0].toName ?? after[0].toEmail ?? 'the next one') : ''}`)
+    setDoneIds(d => [...d, c.thread_id]); setCount(n => n + 1)
+    const after = queue.filter(x => x.thread_id !== c.thread_id)
+    if (after[0]) setCur(after[0].thread_id)
+    setSaid(`${msg}${after[0] ? nextLine(after[0].to || 'the next one') : ''}`)
   }
-  async function send(c: Conversation) {
-    if (!c.toEmail) return setError('There’s no address to reply to. Answer it in Gmail instead.')
+  async function send(c: ToolThread) {
+    const to = draft?.to || c.email
+    if (!to) return setError('There’s no address to reply to. Answer it in Gmail instead.')
     setBusy(true); setError('')
-    try {
-      const r = await fetch('/api/gmail/send-email', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: c.toEmail, subject: /^re:/i.test(c.subject) ? c.subject : `Re: ${c.subject}`, body: text, threadId: c.threadId, source: 'outreach' }),
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(j?.message ?? j?.error ?? 'Couldn’t send it.')
-      await handled(c)
-      next(c, 'Sent from your Gmail.')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Couldn’t send it.')
-    } finally {
-      setBusy(false)
-    }
+    const r = await tool<SendResult>('send_email', {
+      to, subject: draft?.subject ?? (/^re:/i.test(c.subject) ? c.subject : `Re: ${c.subject}`), body: text,
+      thread_id: c.thread_id, ...(draft?.in_reply_to ? { in_reply_to: draft.in_reply_to } : {}),
+    })
+    setBusy(false)
+    const problem = sendProblem(r)
+    if (problem) return setError(problem)
+    await handled(c)
+    next(c, 'Sent from your Gmail.')
   }
 
-  if (!convs) return <div className="ask-sheet-in"><Top label="Email · replies" onClose={onClose} /><p className="ask-sheet-lede">{error || 'Opening…'}</p></div>
+  if (!threads) return <div className="ask-sheet-in"><Top label="Email · replies" onClose={onClose} /><p className="ask-sheet-lede">{error || 'Opening…'}</p></div>
   if (!conv) return <div className="ask-sheet-in"><Top label="Email · replies" onClose={onClose} /><Done text={count ? `${count} answered.` : 'No replies are waiting any more.'} onClose={onClose} /></div>
 
-  const gmail = `https://mail.google.com/mail/u/0/#all/${conv.threadId}`
+  const gmail = `https://mail.google.com/mail/u/0/#all/${conv.thread_id}`
+  const msgs = draft?.messages
   return (
     <div className="ask-sheet-in">
       <Top label={`Email · replies · ${queue.indexOf(conv) + 1} of ${queue.length}`} onClose={onClose} />
-      <h2 className="ask-sheet-h">{conv.toName ?? conv.toEmail}</h2>
+      <h2 className="ask-sheet-h">{conv.to || conv.email}</h2>
       <p className="ask-sheet-lede">{conv.subject}</p>
       <div className="ask-thread">
-        {msgs === null ? <p className="ask-faint">Loading the thread…</p>
-          : msgs.slice(-3).map(m => (
-            <div key={m.id} className={`ask-msg${m.isSelf ? '' : ' is-them'}`}>
-              <small>{m.from}{m.at ? ` · ${new Date(m.at).toLocaleDateString([], { day: 'numeric', month: 'short' })}` : ''}</small>
-              <p>{m.body.length > 700 ? `${m.body.slice(0, 700)}…` : m.body}</p>
+        {!msgs ? <p className="ask-faint">Reading the thread…</p>
+          : msgs.slice(-3).map((m, i) => (
+            <div key={i} className={`ask-msg${m.mine ? '' : ' is-them'}`}>
+              <small>{m.mine ? 'You' : m.from}{m.at ? ` · ${new Date(m.at).toLocaleDateString([], { day: 'numeric', month: 'short' })}` : ''}</small>
+              <p>{m.text.length > 700 ? `${m.text.slice(0, 700)}…` : m.text}</p>
             </div>
           ))}
       </div>
       <div className="ask-mail">
         <div className="ask-mail-to">Your reply</div>
-        <textarea aria-label="Your reply" value={text} onChange={e => setText(e.target.value)} rows={7} placeholder="Write your answer…" />
+        <textarea aria-label="Your reply" value={!draft ? 'Writing…' : text} onChange={e => setText(e.target.value)} disabled={!draft} rows={7} placeholder="Write your answer…" />
       </div>
       <div className="ask-acts">
-        <button type="button" className="ask-btn" disabled={busy || !text.trim()} onClick={() => send(conv)}>{busy ? 'Sending…' : 'Send reply'}</button>
+        <button type="button" className="ask-btn" disabled={busy || !draft || !text.trim()} onClick={() => send(conv)}>{busy ? 'Sending…' : 'Send reply'}</button>
         <button type="button" className="ask-tl" disabled={busy} onClick={async () => { await handled(conv); next(conv, 'Marked as done.') }}>No reply needed</button>
         <a className="ask-tl ask-push" href={gmail} target="_blank" rel="noreferrer">Open in Gmail</a>
       </div>
