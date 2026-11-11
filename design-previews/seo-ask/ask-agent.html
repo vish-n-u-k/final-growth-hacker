@@ -230,7 +230,8 @@ const HOW = {
   leads: ['Results you can act on', 'The answer isn’t just text: the leads come as a list you can pick from.', [
     'Each one: who, one line on why, how to reach them (email, or a message on X).',
     'Nothing is saved yet. <b>Add to my list</b> is the approval (save_leads).',
-    'Untick any you don’t want.']],
+    'Untick any you don’t want.',
+    '<b>Download (CSV)</b> saves the ticked leads with their emails, without adding them.']],
   emails: ['Nothing goes out without you', 'Claude writes the emails; you approve each, or all at once.', [
     'Edit any email before sending.',
     'Sending uses your Gmail and your daily limit (send_email); follow-ups go out by themselves and stop when they reply.',
@@ -264,6 +265,20 @@ const WORK = [
   ['Finding emails from the websites in their bios', 'hunter'],
   ['Leaving out anyone you’ve already contacted', 'check_contacts'],
 ]
+// The ticked leads as a CSV: name, X handle, how to reach them, email, why
+function downloadLeads() {
+  const rows = [['company', 'x_handle', 'reach_by', 'email', 'why']]
+  LEADS.forEach((l, i) => {
+    if (!S.picked[i]) return
+    const handle = l[1].split(' · ')[0]
+    rows.push([l[0], handle, l[2], l[2] === 'email' ? 'hello@' + handle.slice(1) + '.com' : '', l[1].split(' · ')[1] || ''])
+  })
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n')
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+  a.download = 'leads-x-' + new Date().toISOString().slice(0, 10) + '.csv'
+  a.click()
+}
 function go(s) { S.step = s; if (s === 'work') S.t0 = Date.now(); render() }
 const box = (v) => `<form class="ask" onsubmit="event.preventDefault();go('work')"><input value="${v || ''}" placeholder="Ask anything, or tell it what to do…"><button class="send">↑</button></form>`
 function view() {
@@ -290,7 +305,7 @@ function view() {
       <p class="say" style="font-size:17px"><b>9 small businesses on X</b> are asking for help with their posts. <b>4 have an email</b> on their website; the other 5 you can message on X.</p>
       <div class="leads">${LEADS.map((l, i) => `<label class="lr"><input type="checkbox" ${S.picked[i] ? 'checked' : ''} onchange="S.picked[${i}]=this.checked;render()"><div><b>${l[0]}</b><span>${l[1]}</span></div><em>${l[2]}</em></label>`).join('')}</div>
       <div class="approve"><b>Add ${k} to your leads?</b><p>Nothing is saved until you say so. Then Claude writes the emails and messages.</p>
-        <div class="row"><button class="btn do" onclick="go('emails')">Add ${k} and write the emails</button><button class="btn">Just add them</button><button class="tl">Search again, differently</button></div></div>
+        <div class="row"><button class="btn do" onclick="go('emails')">Add ${k} and write the emails</button><button class="btn">Just add them</button><button class="btn" onclick="downloadLeads()">Download (CSV)</button><button class="tl">Search again, differently</button></div></div>
       <p class="note">Task cost $1.20 · searched X, read 38 profiles, 4 email lookups</p></div>`
   }
   if (s === 'emails') return `<div class="col fade" style="padding-top:18px"><button class="back" onclick="go('leads')">← The leads</button>
