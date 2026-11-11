@@ -19,6 +19,10 @@ export type Panel =
   | { kind: 'lead'; id: string; lane: 'email' | 'talk' }   // a lead's email, or a post's reply / a page's message
   | { kind: 'reply'; threadId: string }                     // someone replied: read it and answer
   | { kind: 'brief'; title: string; intro: string; steps: string[]; code?: string; link?: { label: string; href: string } }
+  // Workspaces: the tools themselves, inside Ask (no other pages)
+  | { kind: 'leads'; lane?: 'email' | 'talk'; find?: boolean }
+  | { kind: 'email'; tab?: 'replies' | 'due' | 'list' }
+  | { kind: 'write'; topic?: string }
   // Pages not on Google yet, one by one: ask Google to index each, then mark it done (tracked)
   | { kind: 'index'; property: string; lede: string; rows: IndexRow[] }
 

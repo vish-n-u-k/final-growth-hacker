@@ -43,11 +43,12 @@ const READ_TOOLS = [
 ]
 
 // Where a next step can send the person: the model picks one of these ids, never a URL
-const ACTIONS: Record<string, { label: string; href: string; external?: boolean }> = {
-  leads: { label: 'Open Lead Finder', href: '/leads' },
-  inbox: { label: 'Open the Inbox', href: '/gmail-hub?tab=inbox' },
-  campaigns: { label: 'Open Email Outreach', href: '/gmail-hub?tab=campaigns' },
-  search_agent: { label: 'Open the Search Agent', href: '/agents/search' },
+// Leads, email and writing open as workspaces on the Ask page itself (no other page)
+const ACTIONS: Record<string, { label: string; href: string; external?: boolean; panel?: NextStep['panel'] }> = {
+  leads: { label: 'Open Leads', href: '/leads', panel: { kind: 'leads' } },
+  inbox: { label: 'Open replies', href: '/gmail-hub?tab=inbox', panel: { kind: 'email', tab: 'replies' } },
+  campaigns: { label: 'Send to a list', href: '/gmail-hub?tab=campaigns', panel: { kind: 'email', tab: 'list' } },
+  search_agent: { label: 'Open posts to write', href: '/agents/search', panel: { kind: 'write' } },
   analytics: { label: 'Open Analytics', href: '/analytics' },
   social: { label: 'Open Social Studio', href: '/social' },
   reminders: { label: 'Open Reminders', href: '/reminders' },
@@ -282,7 +283,7 @@ function toPicture(p: Form['picture'] | undefined): Picture | null {
 
 export function toAnswer(question: string, f: Form, how: Answer['how']): Answer {
   const act = ACTIONS[f.next?.action ?? '']
-  const next: NextStep | null = act && f.next?.title ? { title: clip(f.next.title, 80), why: clip(f.next.why, 160), label: act.label, href: act.href, external: act.external } : null
+  const next: NextStep | null = act && f.next?.title ? { title: clip(f.next.title, 80), why: clip(f.next.why, 160), label: act.label, href: act.href, external: act.external, ...(act.panel ? { panel: act.panel } : {}) } : null
   const picture = toPicture(f.picture)
   return {
     id: 'live', question, number: clip(f.number, 14), numberLabel: clip(f.number_label, 40), state: 'ok',

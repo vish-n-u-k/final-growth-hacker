@@ -103,7 +103,7 @@ export function emailCard(list: LeadList, at: string): Answer {
       say: never ? 'No leads yet. Lead Finder looks for businesses that fit what you sell and writes the first email for you.'
         : `Nothing waiting for your OK.${noEmail ? ` ${plural(noEmail, 'good fit')} still ${noEmail === 1 ? 'needs' : 'need'} an email.` : ''}`,
       picture: null, pictureTitle: '', finds: [],
-      next: { title: never ? 'Find your first leads' : 'Find new leads', why: 'A search takes a few minutes.', label: never ? 'Start' : 'Find leads', href: '/leads' },
+      next: { title: never ? 'Find your first leads' : 'Find new leads', why: 'A search takes a few minutes.', label: never ? 'Start' : 'Find leads', href: '/leads', panel: { kind: 'leads', find: true } },
       then: [],
     }
   }
@@ -403,7 +403,7 @@ export function postCard(search: TopicsResult, at: string): Answer {
     next: {
       title: top.status === 'drafted' ? `Check the draft for “${top.keyword}”` : `Write about “${top.keyword}”`,
       why: top.status === 'drafted' ? 'It’s written. Read it, add what only you know, then publish.' : 'The Search Agent drafts it for you after three short questions.',
-      label: top.status === 'drafted' ? 'Check the draft' : 'Write it', href: '/agents/search',
+      label: top.status === 'drafted' ? 'Check the draft' : 'Write it', href: '/agents/search', panel: { kind: 'write', topic: top.keyword },
     },
     then: open.length > 1 ? [{ title: `${open.length - 1} more after this one`, why: open.slice(1, 3).map(t => `“${t.keyword}”`).join(', ') }] : [],
   }
@@ -426,7 +426,7 @@ export function talkCard(list: LeadList, brandName: string, at: string): Answer 
       say: posts.length ? `No new threads waiting.${posted ? ` You’ve replied to ${plural(posted, 'thread')} so far.` : ''}`
         : 'No threads yet. Lead Finder looks for Reddit and Hacker News posts asking for a tool like yours.',
       picture: null, pictureTitle: '', finds: [],
-      next: posts.length ? null : { title: 'Turn on Reddit in Lead Finder', why: 'In Lead Finder’s Settings.', label: 'Open Lead Finder', href: '/leads' },
+      next: posts.length ? null : { title: 'Look for posts to join', why: 'A lead search also looks on Reddit and Hacker News when that’s on in your lead settings.', label: 'Open Leads', href: '/leads', panel: { kind: 'leads', lane: 'talk' } },
       then: [],
     }
   }
@@ -482,7 +482,7 @@ export function keysCard(search: KeywordsResult, at: string): Answer {
       ...(top.cpc ? [`Advertisers pay about **$${top.cpc.toFixed(2)} a click** for “${top.keyword}”, a sign of real buyers.`] : []),
       ...(hard ? [`${plural(hard, 'bigger search word')} ${hard === 1 ? 'is' : 'are'} too hard for a new site for now.`] : []),
     ],
-    next: { title: `Write about “${top.keyword}”`, why: 'One page per search word. The Search Agent drafts it.', label: 'Open Keywords', href: '/agents/search?tab=rank' },
+    next: { title: `Write about “${top.keyword}”`, why: 'One page per search word.', label: 'See posts to write', href: '/agents/search?tab=rank', panel: { kind: 'write' } },
     then: win.length > 1 ? [{ title: `Then “${win[1].keyword}”`, why: perMonth(win[1].volume) }] : [],
   }
 }
@@ -533,7 +533,7 @@ export function trackCard(gsc: { now: Week; before: Week } | 'connect' | 'failed
       ...(!sent ? ['No emails went out this week.'] : []),
     ],
     next: up
-      ? (sent ? null : { title: 'Send a few emails', why: 'Leads are waiting for your OK in Lead Finder.', label: 'Open Lead Finder', href: '/leads' })
+      ? (sent ? null : { title: 'Send a few emails', why: 'Leads are waiting for your OK.', label: 'Open Leads', href: '/leads', panel: { kind: 'leads' } })
       : { title: 'See which pages Google left out', why: 'The “Why am I not on Google?” answer shows where.', label: 'Open the answer', href: '/ask?q=google' },
     then: [], source: 'Google Search Console (ends 2 days ago, it runs behind) · emails GrowJin sent',
   }

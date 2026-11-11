@@ -38,6 +38,7 @@ export interface Conversation {
   note: string | null          // reply snippet / reason, as saved by the reply check
   followUpDueAt: string | null
   repliedAt: string | null     // when the reply came (Lead Agent), or when the reply check first saw it
+  reminderId?: string          // the follow-up reminder behind it, when there is one (closing it ends the follow-up)
 }
 
 const LIMIT = 100
@@ -124,6 +125,7 @@ export async function listConversations(brandId: string): Promise<Conversation[]
       note: r.followupNote,
       followUpDueAt: open ? iso(due) : null,
       repliedAt: r.followupStatus === 'replied' ? iso(r.followupLastSeenAt ?? r.followupCheckedAt) : prev?.repliedAt ?? null,
+      reminderId: r.id,
     })
   }
 

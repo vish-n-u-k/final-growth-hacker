@@ -127,6 +127,7 @@ function threadOut(c: Conversation) {
     intent: c.intent || undefined,        // meeting, interested, question, objection, later, other
     says: c.note ? cut(c.note, 240) : undefined,
     follow_up_due: c.followUpDueAt || undefined,
+    reminder_id: c.reminderId,
   }
 }
 

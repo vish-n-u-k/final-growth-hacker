@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { LeadList, ThreadList, ToolLead, ToolThread } from '@/lib/mcp/tools/inbox'
 import type { IndexRow, Panel } from '@/lib/ask/types'
 import { norm } from '@/lib/ask/urls'
+import { EmailWorkspace, LeadsWorkspace, WriteWorkspace } from './Workspaces'
 
 // Ask, phase 3 (md_files/ASK_PLAN.md): the work an answer points to, done in a panel on the Ask
 // page. Each panel uses the same API as the tool's own page (Lead Finder: /api/agents/lead; the
@@ -31,12 +32,15 @@ export default function AskPanel({ panel, onClose }: { panel: Panel; onClose: (c
         {panel.kind === 'index' && <IndexPanel p={panel} onClose={close} />}
         {panel.kind === 'lead' && <LeadPanel start={panel.id} lane={panel.lane} onChange={() => { changed.current = true }} onClose={close} />}
         {panel.kind === 'reply' && <ReplyPanel start={panel.threadId} onChange={() => { changed.current = true }} onClose={close} />}
+        {panel.kind === 'leads' && <LeadsWorkspace lane={panel.lane} find={panel.find} onChange={() => { changed.current = true }} onClose={close} />}
+        {panel.kind === 'email' && <EmailWorkspace tab={panel.tab} onChange={() => { changed.current = true }} onClose={close} />}
+        {panel.kind === 'write' && <WriteWorkspace topic={panel.topic} onClose={close} />}
       </aside>
     </>
   )
 }
 
-function Top({ label, onClose }: { label: string; onClose: () => void }) {
+export function Top({ label, onClose }: { label: string; onClose: () => void }) {
   return (
     <div className="ask-sheet-top">
       <span className="ask-k">{label}</span>
@@ -45,7 +49,7 @@ function Top({ label, onClose }: { label: string; onClose: () => void }) {
   )
 }
 
-function Done({ text, onClose }: { text: string; onClose: () => void }) {
+export function Done({ text, onClose }: { text: string; onClose: () => void }) {
   return (
     <div className="ask-done">
       <span className="ask-done-ok" aria-hidden="true">
@@ -58,7 +62,7 @@ function Done({ text, onClose }: { text: string; onClose: () => void }) {
   )
 }
 
-async function copy(text: string): Promise<boolean> {
+export async function copy(text: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(text); return true } catch { return false }
 }
 
@@ -196,7 +200,7 @@ const canWork = (l: ToolLead) => l.lane === 'talk' || !!l.email || !!l.message_o
 const pageOf = (l: ToolLead) => l.message_on?.url ?? l.url ?? l.website ?? '#'
 const placeOf = (l: ToolLead) => (l.lane === 'talk' ? l.from : l.message_on?.platform ?? (l.from === 'seller page' ? 'their page' : ''))
 
-function LeadPanel({ start, lane, onChange, onClose }: { start: string; lane: 'email' | 'talk'; onChange: () => void; onClose: () => void }) {
+export function LeadPanel({ start, lane, onChange, onClose }: { start: string; lane: 'email' | 'talk'; onChange: () => void; onClose: () => void }) {
   const [leads, setLeads] = useState<ToolLead[] | null>(null)
   const [cur, setCur] = useState(start)
   const [doneIds, setDoneIds] = useState<string[]>([])
@@ -318,7 +322,7 @@ function LeadPanel({ start, lane, onChange, onClose }: { start: string; lane: 'e
 interface Msg { from: string; at: string | null; text: string; mine: boolean }
 interface Draft { to?: string; subject?: string; body?: string; thread_id?: string; in_reply_to?: string; messages?: Msg[]; error?: string }
 
-function ReplyPanel({ start, onChange, onClose }: { start: string; onChange: () => void; onClose: () => void }) {
+export function ReplyPanel({ start, show = 'replies', onChange, onClose }: { start: string; show?: 'replies' | 'due'; onChange: () => void; onClose: () => void }) {
   const [threads, setThreads] = useState<ToolThread[] | null>(null)
   const [cur, setCur] = useState(start)
   const [doneIds, setDoneIds] = useState<string[]>([])
@@ -330,7 +334,7 @@ function ReplyPanel({ start, onChange, onClose }: { start: string; onChange: () 
   const [count, setCount] = useState(0)
 
   useEffect(() => {
-    tool<ThreadList>('list_replies', { show: 'replies', days: 14, limit: 50 })
+    tool<ThreadList>('list_replies', show === 'due' ? { show: 'due', limit: 50 } : { show: 'replies', days: 14, limit: 50 })
       .then(j => (j.error ? setError(j.error) : setThreads(j.threads ?? [])))
   }, [])
 
@@ -350,8 +354,10 @@ function ReplyPanel({ start, onChange, onClose }: { start: string; onChange: () 
     return () => { live = false }
   }, [conv?.thread_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // A Lead Finder reply is marked as answered there too, so it leaves its "replied" list
+  // A Lead Finder reply is marked as answered there too, so it leaves its "replied" list;
+  // a due follow-up's reminder is closed (Email Outreach's reminders API: no tool does this yet)
   async function handled(c: ToolThread) {
+    if (show === 'due') { if (c.reminder_id) await fetch(`/api/reminders/${c.reminder_id}/done`, { method: 'POST' }).catch(() => {}); return }
     if (c.from !== 'lead-agent') return
     const j = await tool<LeadList>('list_leads', { status: 'replied', limit: 100 })
     const l = j.leads?.find(x => x.thread_id === c.thread_id)
@@ -371,22 +377,24 @@ function ReplyPanel({ start, onChange, onClose }: { start: string; onChange: () 
     const r = await tool<SendResult>('send_email', {
       to, subject: draft?.subject ?? (/^re:/i.test(c.subject) ? c.subject : `Re: ${c.subject}`), body: text,
       thread_id: c.thread_id, ...(draft?.in_reply_to ? { in_reply_to: draft.in_reply_to } : {}),
+      ...(show === 'due' ? { follow_up_days: 5 } : {}),
     })
     setBusy(false)
     const problem = sendProblem(r)
     if (problem) return setError(problem)
     await handled(c)
-    next(c, 'Sent from your Gmail.')
+    next(c, show === 'due' ? 'Follow-up sent. If they don’t reply, it’s back in 5 days.' : 'Sent from your Gmail.')
   }
 
-  if (!threads) return <div className="ask-sheet-in"><Top label="Email · replies" onClose={onClose} /><p className="ask-sheet-lede">{error || 'Opening…'}</p></div>
-  if (!conv) return <div className="ask-sheet-in"><Top label="Email · replies" onClose={onClose} /><Done text={count ? `${count} answered.` : 'No replies are waiting any more.'} onClose={onClose} /></div>
+  const label = show === 'due' ? 'Email · follow-ups' : 'Email · replies'
+  if (!threads) return <div className="ask-sheet-in"><Top label={label} onClose={onClose} /><p className="ask-sheet-lede">{error || 'Opening…'}</p></div>
+  if (!conv) return <div className="ask-sheet-in"><Top label={label} onClose={onClose} /><Done text={count ? `${count} done.` : show === 'due' ? 'No follow-ups are due.' : 'No replies are waiting any more.'} onClose={onClose} /></div>
 
   const gmail = `https://mail.google.com/mail/u/0/#all/${conv.thread_id}`
   const msgs = draft?.messages
   return (
     <div className="ask-sheet-in">
-      <Top label={`Email · replies · ${queue.indexOf(conv) + 1} of ${queue.length}`} onClose={onClose} />
+      <Top label={`${label} · ${queue.indexOf(conv) + 1} of ${queue.length}`} onClose={onClose} />
       <h2 className="ask-sheet-h">{conv.to || conv.email}</h2>
       <p className="ask-sheet-lede">{conv.subject}</p>
       <div className="ask-thread">
@@ -399,12 +407,12 @@ function ReplyPanel({ start, onChange, onClose }: { start: string; onChange: () 
           ))}
       </div>
       <div className="ask-mail">
-        <div className="ask-mail-to">Your reply</div>
+        <div className="ask-mail-to">{show === 'due' ? 'Your follow-up' : 'Your reply'}</div>
         <textarea aria-label="Your reply" value={!draft ? 'Writing…' : text} onChange={e => setText(e.target.value)} disabled={!draft} rows={7} placeholder="Write your answer…" />
       </div>
       <div className="ask-acts">
-        <button type="button" className="ask-btn" disabled={busy || !draft || !text.trim()} onClick={() => send(conv)}>{busy ? 'Sending…' : 'Send reply'}</button>
-        <button type="button" className="ask-tl" disabled={busy} onClick={async () => { await handled(conv); next(conv, 'Marked as done.') }}>No reply needed</button>
+        <button type="button" className="ask-btn" disabled={busy || !draft || !text.trim()} onClick={() => send(conv)}>{busy ? 'Sending…' : show === 'due' ? 'Send follow-up' : 'Send reply'}</button>
+        <button type="button" className="ask-tl" disabled={busy} onClick={async () => { await handled(conv); next(conv, show === 'due' ? 'Skipped.' : 'Marked as done.') }}>{show === 'due' ? 'Skip this one' : 'No reply needed'}</button>
         <a className="ask-tl ask-push" href={gmail} target="_blank" rel="noreferrer">Open in Gmail</a>
       </div>
       {error && <p className="ask-err" role="alert">{error}{/gmail|connect/i.test(error) && <> <a href="/api/gmail/connect">Connect Gmail</a></>}</p>}

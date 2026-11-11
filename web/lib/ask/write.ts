@@ -89,7 +89,9 @@ export async function writeAnswer(brandId: string, threadId: string): Promise<Wr
 The conversation so far (oldest first):
 ${msgs.map(m => `--- ${m.mine ? `You (${name})` : m.from}${m.at ? `, ${m.at.slice(0, 10)}` : ''}:\n${m.text.slice(0, 1500)}`).join('\n')}
 
-Write the owner's answer to the last message from ${theirs?.from ?? 'them'} (under 80 words). Answer what they asked or said directly. If they want a call, offer two concrete times this week and ask which works. If they asked the price or how it works, answer plainly. If they said no or later, thank them and leave the door open in one line. Sign off "${name}".
+${msgs.at(-1)?.mine
+    ? `They haven't answered yet. Write a short, friendly follow-up from the owner (under 50 words) that adds one new, useful thing (an example, a result, or a simpler ask) instead of "just checking in". Sign off "${name}".`
+    : `Write the owner's answer to the last message from ${theirs?.from ?? 'them'} (under 80 words). Answer what they asked or said directly. If they want a call, offer two concrete times this week and ask which works. If they asked the price or how it works, answer plainly. If they said no or later, thank them and leave the door open in one line. Sign off "${name}".`}
 
 Return {"body":"..."}`,
   })
@@ -101,4 +103,43 @@ Return {"body":"..."}`,
     subject, body: x.body.trim(), thread_id: threadId, in_reply_to: theirs?.message_id,
     messages: msgs.map(({ from, at, text: t, mine }) => ({ from, at, text: t, mine })),
   }
+}
+
+/** One email for a whole list, with {first name} and {company} filled in per person when it's sent. */
+export async function writeListEmail(brandId: string, about: string): Promise<{ subject: string; body: string } | { error: string }> {
+  const { name, text } = await brandLines(brandId)
+  const raw = await callAI({
+    feature: 'ask-write', model: MODEL, maxTokens: 800,
+    system: 'You write short, personal outreach that gets replies. Plain words, no hype, no buzzwords, no emojis, no em dashes. Return only a raw JSON object.',
+    prompt: `${text}
+
+Write ONE email the owner will send to a list of people they already know of. It's about: ${about || `what ${name} offers`}.
+Use {first name} and {company} where the person's name and company go (they're filled in per person; "{first name}" becomes "there" when unknown). "subject": 3-6 words, low-key. "body": under 70 words, starts "Hi {first name},", one sentence on why you're writing, one on how ${name} helps, ONE small ask, sign off "${name}". No links, no opt-out line.
+
+Return {"subject":"...","body":"..."}`,
+  })
+  const x = parseJsonLoose<{ subject?: string; body?: string }>(raw, 'object')
+  return x?.subject && x.body ? { subject: x.subject.trim(), body: x.body.trim() } : { error: 'Couldn’t write it this time. Try again.' }
+}
+
+/** A post for one of the Search Agent's topics, written now (shown to copy; not saved). */
+export async function writePost(brandId: string, keyword: string): Promise<{ title: string; markdown: string } | { error: string }> {
+  const t = await askTool<{ topics?: { keyword: string; kind: string; volume: number; why: string; page_to_rewrite?: string }[] }>(brandId, 'get_search_agent', { section: 'topics', limit: '100' })
+  const topic = t.topics?.find(x => x.keyword.toLowerCase() === keyword.toLowerCase())
+  if (!topic) return { error: 'That topic isn’t in the Search Agent’s list any more.' }
+  const { name, text } = await brandLines(brandId)
+  const raw = await callAI({
+    feature: 'ask-write', model: MODEL, maxTokens: 6000,
+    system: 'You write genuinely useful blog posts for small businesses. Plain words, short paragraphs, real advice, no fluff, no em dashes. Never invent customer stories, quotes or numbers.',
+    prompt: `${text}
+
+Write a blog post for the search "${topic.keyword}" (${topic.volume.toLocaleString('en')} searches a month). Why it was picked: ${topic.why}
+${topic.kind === 'improve' && topic.page_to_rewrite ? `This replaces the owner's existing page ${topic.page_to_rewrite}; write the full new version.` : ''}
+About 1,000-1,400 words. Answer the search in the first paragraph. Use ## headings that match what people ask. Mention ${name} once or twice where it truly helps, never as an ad. End with a short "In short" list.
+
+Return the post as Markdown, starting with "# " and the title. Nothing else.`,
+  })
+  const md = raw.trim().replace(/^```(?:markdown)?\s*|\s*```$/g, '')
+  const title = /^#\s+(.+)$/m.exec(md)?.[1]?.trim()
+  return title ? { title, markdown: md } : { error: 'Couldn’t write it this time. Try again.' }
 }

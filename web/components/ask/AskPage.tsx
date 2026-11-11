@@ -61,6 +61,18 @@ function useElapsed(start: number | null, on: boolean): number {
 
 type View = { kind: 'home' } | { kind: 'card'; id: CardId } | { kind: 'pin'; id: string } | { kind: 'live' }
 
+/** "find me leads", "email my list", "write a post": the workspace to open instead of answering. */
+function jobOf(t: string): Panel | null {
+  const q = t.toLowerCase()
+  if (/^(find|get|search for|look for)\b.*\b(leads?|customers|prospects|businesses)\b/.test(q)) return { kind: 'leads', find: true }
+  if (/^(show|open|see)\b.*\bleads?\b/.test(q) || /^my leads\b/.test(q)) return { kind: 'leads' }
+  if (/^(email|send|write)\b.*\b(list|campaign|everyone)\b/.test(q)) return { kind: 'email', tab: 'list' }
+  if (/^(answer|reply to|open)\b.*\b(repl(y|ies)|emails?|inbox)\b/.test(q)) return { kind: 'email', tab: 'replies' }
+  if (/^(send|do)\b.*\bfollow[- ]?ups?\b/.test(q)) return { kind: 'email', tab: 'due' }
+  if (/^write\b.*\b(post|blog|article)\b/.test(q)) return { kind: 'write' }
+  return null
+}
+
 export default function AskPage({ brandName, site, initial, stale, initialOpen }: {
   brandName: string
   site: string
@@ -220,6 +232,9 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
     if (!t) return
     setTyped('')
     if (follow) return run(t, undefined, true)
+    // A job, not a question: open its workspace (free)
+    const job = jobOf(t)
+    if (job) return setPanel(job)
     // Exactly a ready answer's question: open it (free)
     const card = cards.find(c => c.question.toLowerCase().replace(/\W/g, '') === t.toLowerCase().replace(/\W/g, ''))
     if (card) go({ kind: 'card', id: card.id as CardId })
@@ -238,6 +253,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
     ? <p className="ask-miss">{left === 0 ? 'No questions of your own left today. Ready answers still work.' : `${left} question${left === 1 ? '' : 's'} of your own left today.`}</p>
     : null
 
+  const cardNum = (id: CardId) => { const c = cards.find(x => x.id === id); return c?.state === 'ok' ? Number(c.number) || 0 : 0 }
   const openCard = view.kind === 'card' ? cards.find(c => c.id === view.id) ?? null : null
   const pins = data?.pins ?? []
   const openPin = view.kind === 'pin' ? pins.find(p => p.id === `pin:${view.id}`) ?? null : null
@@ -250,7 +266,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
         </button>
         <span className="ask-who">
           <span className="ask-pill">{site}</span>
-          <Link href="/tools" className="ask-out">Tools →</Link>
+          <Link href="/settings" className="ask-out">Settings</Link>
         </span>
       </header>
 
@@ -318,10 +334,16 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
         {view.kind === 'home' && (
           <>
             <section className="ask-hello">
-              <h1>What do you want to know?</h1>
+              <h1>What do you want to know or do?</h1>
               <p className="ask-lede">{!data && busy ? <>Taking a first look at {site}. This takes about a minute.</> : <>About {brandName}{data?.at ? <>, checked {dayOf(data.at)}</> : null}.</>}</p>
-              {box('Ask anything about your business…')}
+              {box('Ask anything, or say “find me leads”…')}
               {leftLine}
+              <div className="ask-home-dos">
+                {/* The work itself, in a panel on this page: the tools, without the old pages */}
+                <button type="button" className="ask-do" onClick={() => setPanel({ kind: 'leads' })}>Leads{cardNum('email') ? <small>{cardNum('email')} ready</small> : null}</button>
+                <button type="button" className={`ask-do${cardNum('replies') ? ' is-reply' : ''}`} onClick={() => setPanel({ kind: 'email' })}>Email{cardNum('replies') ? <small>{cardNum('replies')} {cardNum('replies') === 1 ? 'reply' : 'replies'}</small> : null}</button>
+                <button type="button" className="ask-do" onClick={() => setPanel({ kind: 'write' })}>Write{cardNum('post') ? <small>{cardNum('post')} to write</small> : null}</button>
+              </div>
             </section>
 
             <section className="ask-sec">
