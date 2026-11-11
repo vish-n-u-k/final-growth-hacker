@@ -1,5 +1,52 @@
 # What's new in GrowJin
 
+## 10 Nov 2026
+
+### New
+- **Ask Claude "are we on track for 500?"** With GrowJin connected, Claude now knows your goal (500 sign-ups by default; you can change the number, what counts, like active or paying, and add a deadline). It tells you where you stand, how many you add a week, whether that's speeding up or slowing down, when you'll reach the goal and whether you're on track.
+- **Ask Claude how yesterday went.** Visits, new visitors, Google clicks and sign-ups against your 7- and 30-day averages, which channel grew and which went quiet, and any day that's far from normal. Your own visits to /admin pages are left out.
+- **Weekly review in Claude.** One question gets the week side by side: goal pace, numbers this week vs last, channels, work you logged, emails sent and changes being tested, so Claude can say what moved you forward and what barely mattered.
+- **Ask Claude about your Search Agent.** With GrowJin connected, Claude can now read the Search Agent's latest research: whether ChatGPT, Perplexity, Gemini and Google AI Overviews mention you, who they recommend instead, which sites they cite, your rankings and keyword ideas, posts to write, to-dos and sites to pitch.
+
+### Fixed
+- **Claude's growth numbers add up.** New, churned and power users are now counted the same way as your active users, so churn can no longer be bigger than your user base.
+- **Daily history wasn't being saved.** Claude said "No history yet" for every brand. GrowJin now repairs this on its own, fills in yesterday when it's missing, and says plainly when something is wrong.
+- **No more false passes in audits.** Checks that couldn't run (for example speed checks in older audits, or title checks when the page has no title) were sometimes counted as passed. They now show as "Not checked" and are left out of the score, so the score may drop a little.
+
+## 7 Nov 2026
+
+### Fixed
+- **Claude can read your Search Console data again.** It now finds your site's property in Search Console (including domain properties) and shows totals, top searches and top pages. When something's wrong, Claude tells you what instead of showing nothing.
+- **Claude sees all your competitors.** The ones Competitor Analysis suggested now show up too, not only the ones you typed in.
+- **Claude's PostHog answers are complete.** User lists find people by the email property your app uses, longer periods like 30 days work, and segments (new, churned and power users) come back with numbers. If PostHog has a problem, Claude says what it is.
+
+## 6 Nov 2026
+
+### New
+- **Find leads with Claude, approve them in GrowJin.** With GrowJin connected, ask Claude to find leads. It uses your Lead Finder brief and ideal customer, skips anyone you've already emailed, who's already a lead or who opted out, and adds the good ones to Lead Finder. There you approve each email as usual, and follow-ups go out by themselves.
+- **Claude can send email from your Gmail.** Switch on "Let Claude send email" in Settings → Connect Claude and pick a daily limit (10, 25 or 50). Claude shows you each email before sending. People who opted out or bounced are never emailed, and sent emails show in Email Outreach. Off until you switch it on.
+- **Work log in Claude.** Doing growth work outside GrowJin, like publishing blogs, posting in communities or emailing leads? Tell Claude (with GrowJin connected) and it saves it: what you did, the link, when and how. Ask later, for example "which blogs did I publish this month?" or "what's due for a follow-up?", and it shows you. It's only in Claude; nothing changes in the app.
+
+### Improved
+- **Lead Finder: quicker Settings.** Industry, location, company size, who to contact and follow-up days are now options you tick (pick as many as you like, or add your own). Leads per search and emails a day are dropdowns.
+
+## 5 Nov 2026
+
+### Improved
+- **Search & AI: no more chasing searches you can't win.** If a page aims at a search that big sites own (too competitive for a site your size, or too broad), it's flagged and you get easier, more specific versions of it you can realistically win, with searches a month and difficulty. Pick one, and the new title and headings are written for it.
+- **Search & AI: change the dates.** Made a change or picked a keyword a week ago? Change the start date on any test, or on when a page started aiming at its search, and the results are worked out from that day.
+
+## 4 Nov 2026
+
+### New
+- **Search & AI: see where you stand on Google and in AI answers, and know when a change works.** Two tabs, colour-coded. **SEO** reads your homepage and main pages, finds the search each one targets, shows where it ranks, and writes a new title, H1 or headings when one needs a change. **GEO** shows whether ChatGPT, Perplexity, Gemini and Google's AI Overview name you for the questions your buyers ask, who they name instead, and what to do. Every change you make becomes a test with a "know by" date (6 weeks), and title or H1 changes are spotted by themselves. Checks run every week, or any time with "Recheck all keywords".
+- **Search & AI: answers from the first check.** Each page shows the searches Google really shows it for, with position, views and clicks, and gets a verdict right away: aim it at what it already gets, pick a search people actually make, or fine as it is. Brand-name pages like pricing and FAQ aren't flagged. You can now pick the date you made a change, so changes made weeks ago are judged from then. The weekly check turns on when you first open the page.
+
+- **Foundation: Google Business Profile check.** Foundation now checks whether your business has a Google Business Profile, the box people see on Google and Google Maps when they search your name. It shows your rating and reviews, flags a profile you haven't claimed, and gives the steps to set one up if you don't have one.
+
+### Fixed
+- **Search & AI:** misspellings of your name (like "frektok" for Frekto) now count as searches for your name, so a page is no longer told to aim at a typo of your brand.
+
 ## 3 Nov 2026
 
 ### New

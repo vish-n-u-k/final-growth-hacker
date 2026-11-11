@@ -14,7 +14,7 @@ import { eq, inArray, and } from 'drizzle-orm'
 import { MODULE_MAP, MODULE_REGISTRY, SEEDED_MODULES, placementOf } from '@/lib/modules/registry'
 import AllModulesDashboard, { type ModuleData } from '@/components/AllModulesDashboard'
 import { type DBItemState } from '@/components/ModuleDashboard'
-import type { DBItemFull } from '@/lib/modules/types'
+import { defForBrand, type DBItemFull } from '@/lib/modules/types'
 
 export default async function DashboardPage() {
   await sendToAskIfHome()   // Ask is home for early access (lib/features.ts askIsHome)
@@ -160,7 +160,8 @@ export default async function DashboardPage() {
   }
 
   for (const mod of allModulesRaw) {
-    const def = MODULE_MAP[mod.type]
+    // Checks that don't apply to this brand's website type are left out (defForBrand)
+    const def = MODULE_MAP[mod.type] ? defForBrand(MODULE_MAP[mod.type], brand.websiteType) : undefined
     // Growth Path shows its steps plus Growth Stage (sidebar stage card); tools and retired modules live elsewhere.
     if (!def || placementOf(def) === 'tool' || placementOf(def) === 'hidden') continue
 

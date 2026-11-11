@@ -29,6 +29,8 @@ export const TOOL_GROUPS: ToolGroup[] = [
       desc: 'Spot leads in your Gmail, send campaigns and follow up.' },
   ]},
   { label: 'Get seen', items: [
+    { href: '/search-ai', label: 'Search & AI', icon: 'target', pro: true,
+      desc: 'Your Google rankings and AI answers week by week, which keywords to keep, change or drop, and what to write next.' },
     { href: '/agents/search', label: 'Search Agent', icon: 'search', pro: true,
       desc: 'Picks keywords you can win, writes posts, finds sites to get links from and tracks your Google and AI rank.' },
     { href: '/social', label: 'Social Studio', icon: 'image', pro: true,

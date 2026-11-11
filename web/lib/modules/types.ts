@@ -30,6 +30,9 @@ export interface ModuleItemDefinition {
   // An idea / research result, not a pass-fail check: shown without a checkbox and left out of
   // scores, issue counts, Today and pending lists (e.g. SEO keyword research)
   insight?: boolean
+  // Website types (brands.websiteType) this check applies to; omit = every brand. A brand of
+  // another type never gets the check: it isn't seeded, shown or scored (see defForBrand).
+  relevantFor?: string[]
 }
 
 export interface ModuleSubCategoryDefinition {
@@ -172,6 +175,28 @@ export function getAllItems(mod: ModuleDefinition): ModuleItemDefinition[] {
   )
 }
 
+/** Does this check apply to a brand of this website type (brands.websiteType, null = 'saas')? */
+export function itemFits(item: ModuleItemDefinition, websiteType: string | null | undefined): boolean {
+  return !item.relevantFor?.length || item.relevantFor.includes(websiteType || 'saas')
+}
+
+/**
+ * The module as this brand sees it: checks that don't apply to its website type are left out,
+ * and so are sub-categories and categories left empty. Dynamic modules are returned as they are.
+ */
+export function defForBrand(mod: ModuleDefinition, websiteType: string | null | undefined): ModuleDefinition {
+  if (mod.dynamic || getAllItems(mod).every(i => itemFits(i, websiteType))) return mod
+  const categories = (mod.categories as ModuleCategoryDefinition[])
+    .map(c => ({
+      ...c,
+      subCategories: c.subCategories
+        .map(s => ({ ...s, items: s.items.filter(i => itemFits(i, websiteType)) }))
+        .filter(s => s.items.length > 0),
+    }))
+    .filter(c => c.subCategories.length > 0)
+  return { ...mod, categories }
+}
+
 export function getTotalWeight(mod: ModuleDefinition): number {
   return getAllItems(mod).reduce((sum, i) => sum + i.weight, 0)
 }
@@ -188,4 +213,9 @@ export function isDynamicIdea(def: ModuleDefinition | undefined, slugOrCategory:
   return (def.categories as DynamicModuleCategoryDefinition[]).some(c => c.insight && (slugOrCategory === c.slug || slugOrCategory.startsWith(`${c.slug}-`)))
 }
 
-export const isNotChecked = (detail: string | null | undefined): boolean => !!detail && detail.startsWith(NOT_CHECKED_PREFIX)
+// Wording older analyses saved for checks that never ran (often marked as passed back then):
+// "Cannot check H1 count — none found", Core Web Vitals that "require Lighthouse CLI"…
+const LEGACY_NOT_CHECKED = /^Cannot (check|compare)\b|\b(requires?|needs?) (the )?Lighthouse\b|\bLighthouse (CLI )?(is )?(not|un)\s?(available|installed)/i
+
+export const isNotChecked = (detail: string | null | undefined): boolean =>
+  !!detail && (detail.startsWith(NOT_CHECKED_PREFIX) || LEGACY_NOT_CHECKED.test(detail))

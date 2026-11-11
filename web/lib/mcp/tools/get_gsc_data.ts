@@ -1,55 +1,62 @@
-import { createSign } from 'crypto'
 import { db } from '@/lib/db'
 import { brandIntegrations, brands } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { getServiceToken } from '@/lib/analytics/google-providers'
+import { pickProperty } from '@/lib/modules/seo/gsc-indexing'
 
-const NOT_CONNECTED = {
+// MCP get_gsc_data. Finds the Search Console property the service account can see for the brand's
+// site (a URL-prefix property, or a domain property sc-domain:example.com), the same way the
+// integration health check does, and reports Google's own error instead of empty lists.
+
+const NOT_CONNECTED: { connected: false; message: string } = {
   connected: false,
   message: 'Google Search Console API is not connected. Go to Settings → Integrations → Google Search Console API to add your Service Account credentials.',
 }
 
-async function getToken(email: string, key: string): Promise<string | null> {
+export type GscRow = { keys?: string[]; clicks: number; impressions: number; ctr: number; position: number }
+type SiteEntry = { siteUrl: string; permissionLevel: string }
+
+/** The brand's home page as URL variants (as given, https, with and without www) to match a property. */
+function homeVariants(websiteUrl: string): string[] {
+  const raw = websiteUrl.trim()
+  const url = /^https?:\/\//.test(raw) ? raw : `https://${raw}`
   try {
-    const buf = (s: string) => Buffer.from(s).toString('base64url')
-    const now = Math.floor(Date.now() / 1000)
-    const h = buf(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
-    const p = buf(JSON.stringify({ iss: email, scope: 'https://www.googleapis.com/auth/webmasters.readonly', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }))
-    const input = `${h}.${p}`
-    const sign = createSign('RSA-SHA256')
-    sign.update(input)
-    const sig = sign.sign(key.replace(/\\n/g, '\n'), 'base64url')
-    const res = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: `${input}.${sig}` }),
-      signal: AbortSignal.timeout(10000),
-    })
-    if (!res.ok) return null
-    return ((await res.json()) as { access_token?: string }).access_token ?? null
-  } catch { return null }
+    const u = new URL(url)
+    const bare = u.hostname.replace(/^www\./, '')
+    const path = u.pathname.endsWith('/') ? u.pathname : `${u.pathname}/`
+    return [...new Set([`${u.protocol}//${u.hostname}${path}`, `https://${bare}/`, `https://www.${bare}/`, `http://${bare}/`, `http://www.${bare}/`])]
+  } catch { return [] }
 }
 
-type GscRow = { keys: string[]; clicks: number; impressions: number; ctr: number; position: number }
+async function googleError(res: Response): Promise<string> {
+  const e = await res.json().catch(() => null) as { error?: { message?: string } } | null
+  return `Google answered ${res.status}: ${e?.error?.message ?? res.statusText}`
+}
 
-async function gscQuery(token: string, siteUrl: string, body: object): Promise<GscRow[]> {
+export async function gscQuery(token: string, property: string, body: object): Promise<{ rows: GscRow[]; error?: string }> {
   try {
-    const encodedSite = encodeURIComponent(siteUrl)
-    const res = await fetch(`https://searchconsole.googleapis.com/webmasters/v3/sites/${encodedSite}/searchAnalytics/query`, {
+    const res = await fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(20000),
     })
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({})) as { error?: { message: string } }
-      console.error('[gsc-mcp]', res.status, e?.error?.message)
-      return []
-    }
-    return ((await res.json()) as { rows?: GscRow[] }).rows ?? []
-  } catch (e) { console.error('[gsc-mcp]', e); return [] }
+    if (!res.ok) return { rows: [], error: await googleError(res) }
+    return { rows: ((await res.json()) as { rows?: GscRow[] }).rows ?? [] }
+  } catch (e) {
+    return { rows: [], error: e instanceof Error && e.name === 'TimeoutError' ? 'Search Console took too long to answer.' : `Could not reach Search Console (${e instanceof Error ? e.message : 'failed'}).` }
+  }
 }
 
-export async function getGscData(brandId: string, days = 28, limit = 20) {
+const round1 = (n: number) => Math.round(n * 10) / 10
+const ctrPct = (n: number) => Math.round(n * 1000) / 10
+
+export type GscConn =
+  | { ok: true; token: string; property: string; clientEmail: string }
+  | { ok: false; answer: typeof NOT_CONNECTED | { connected: true; error: string; properties_it_can_see?: string[] } }
+
+/** The token and the property for the brand's site, or the answer to give when there isn't one. */
+export async function connectGsc(brandId: string): Promise<GscConn> {
   const [[brand], [integration]] = await Promise.all([
     db.select({ websiteUrl: brands.websiteUrl }).from(brands).where(eq(brands.id, brandId)).limit(1),
     db.select()
@@ -62,56 +69,79 @@ export async function getGscData(brandId: string, days = 28, limit = 20) {
       .limit(1),
   ])
 
-  if (!integration) return NOT_CONNECTED
-
+  if (!integration) return { ok: false, answer: NOT_CONNECTED }
   const meta = (integration.metadata as Record<string, string> | null) ?? {}
-  if (!meta.client_email || !meta.private_key) return NOT_CONNECTED
+  if (!meta.client_email || !meta.private_key) return { ok: false, answer: NOT_CONNECTED }
 
-  const token = await getToken(meta.client_email, meta.private_key)
-  if (!token) return { connected: true, error: 'GSC authentication failed. Check your Service Account credentials.' }
+  const token = await getServiceToken(meta.client_email, meta.private_key, 'https://www.googleapis.com/auth/webmasters.readonly')
+  if (!token) return { ok: false, answer: { connected: true, error: 'Google rejected the Search Console service account key. Re-check the email and private key in Settings → Integrations.' } }
 
-  const siteUrl = brand?.websiteUrl ?? ''
-  const endDate = new Date().toISOString().slice(0, 10)
-  const startDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
+  // Which property to read
+  let entries: SiteEntry[] = []
+  try {
+    const res = await fetch('https://www.googleapis.com/webmasters/v3/sites', { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) })
+    if (!res.ok) return { ok: false, answer: { connected: true, error: `Could not list Search Console properties. ${await googleError(res)}` } }
+    entries = ((await res.json()) as { siteEntry?: SiteEntry[] }).siteEntry ?? []
+  } catch (e) {
+    return { ok: false, answer: { connected: true, error: `Could not reach Search Console (${e instanceof Error ? e.message : 'failed'}).` } }
+  }
+  const websiteUrl = brand?.websiteUrl ?? ''
+  const property = homeVariants(websiteUrl).map(u => pickProperty(entries, u)).find(Boolean) ?? null
+  if (!property) {
+    return {
+      ok: false,
+      answer: {
+        connected: true,
+        error: `The service account (${meta.client_email}) can't see a Search Console property for ${websiteUrl || 'this site'}. In Search Console → Settings → Users and permissions, add it as a user on that property.`,
+        properties_it_can_see: entries.map(e => e.siteUrl),
+      },
+    }
+  }
+  return { ok: true, token, property, clientEmail: meta.client_email }
+}
 
-  const [queryRows, pageRows] = await Promise.all([
-    gscQuery(token, siteUrl, {
-      startDate,
-      endDate,
-      dimensions: ['query'],
-      rowLimit: limit,
-      orderBy: [{ fieldName: 'impressions', sortOrder: 'DESCENDING' }],
-    }),
-    gscQuery(token, siteUrl, {
-      startDate,
-      endDate,
-      dimensions: ['page'],
-      rowLimit: limit,
-      orderBy: [{ fieldName: 'clicks', sortOrder: 'DESCENDING' }],
-    }),
+export async function getGscData(brandId: string, days = 28, limit = 20) {
+  const span = [7, 28, 90].includes(days) ? days : Math.min(Math.max(1, Math.round(days) || 28), 480)
+  const rowLimit = Math.min(Math.max(1, Math.round(limit) || 20), 100)
+
+  const conn = await connectGsc(brandId)
+  if (!conn.ok) return conn.answer
+  const { token, property } = conn
+
+  // Search Console's data runs about 2 days behind, so the window ends 2 days ago
+  const day = (ago: number) => new Date(Date.now() - ago * 86_400_000).toISOString().slice(0, 10)
+  const endDate = day(2)
+  const startDate = day(span + 1)
+  const base = { startDate, endDate, dataState: 'all' }
+
+  const [totals, queries, pages] = await Promise.all([
+    gscQuery(token, property, { ...base, rowLimit: 1 }),
+    gscQuery(token, property, { ...base, dimensions: ['query'], rowLimit: rowLimit * 2 }),
+    gscQuery(token, property, { ...base, dimensions: ['page'], rowLimit }),
   ])
+  const errors = [...new Set([totals.error, queries.error, pages.error].filter((e): e is string => !!e))]
+  if (totals.error && queries.error && pages.error) return { connected: true, property, error: errors.join(' ') }
 
-  const topQueries = queryRows.map(r => ({
-    query: r.keys[0],
-    clicks: r.clicks,
-    impressions: r.impressions,
-    ctr: Math.round(r.ctr * 1000) / 10,
-    position: Math.round(r.position * 10) / 10,
-  }))
-
-  const topPages = pageRows.map(r => ({
-    page: r.keys[0],
-    clicks: r.clicks,
-    impressions: r.impressions,
-    ctr: Math.round(r.ctr * 1000) / 10,
-    position: Math.round(r.position * 10) / 10,
-  }))
+  const t = totals.rows[0]
+  // Searches with operators (site:, inurl:…) come from SEO and lead tools, ours included, not people
+  const topQueries = queries.rows
+    .filter(r => !/(^|\s)-?(site|inurl|intitle|intext|allinurl|allintitle|related|cache):/i.test(r.keys?.[0] ?? ''))
+    .sort((a, b) => b.impressions - a.impressions)
+    .slice(0, rowLimit)
+    .map(r => ({ query: r.keys?.[0] ?? '', clicks: r.clicks, impressions: r.impressions, ctr: ctrPct(r.ctr), position: round1(r.position) }))
+  const topPages = pages.rows
+    .map(r => ({ page: r.keys?.[0] ?? '', clicks: r.clicks, impressions: r.impressions, ctr: ctrPct(r.ctr), position: round1(r.position) }))
 
   return {
     connected: true,
-    siteUrl,
-    days,
+    property,
+    days: span,
+    from: startDate,
+    to: endDate,
+    totals: t ? { clicks: t.clicks, impressions: t.impressions, ctr: ctrPct(t.ctr), position: round1(t.position) } : { clicks: 0, impressions: 0, ctr: 0, position: null },
     topQueries,
     topPages,
+    ...(errors.length ? { partial_error: errors.join(' ') } : {}),
+    ...(!t && !queries.rows.length && !pages.rows.length && !errors.length ? { note: `Search Console has no search data for ${property} between ${startDate} and ${endDate}.` } : {}),
   }
 }

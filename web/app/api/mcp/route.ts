@@ -1,8 +1,8 @@
 import { resolveBrandFromToken } from '@/lib/mcp/auth'
 import { TOOLS } from '@/lib/mcp/tool-registry'
+import { dispatch } from '@/lib/mcp/dispatch'
 import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
 import { logActivity, touchMcp } from '@/lib/activity'
-import { dispatch } from '@/lib/mcp/dispatch'
 
 export const maxDuration = 300
 

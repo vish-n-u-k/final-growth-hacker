@@ -1,6 +1,6 @@
 # GrowJin: handoff for the next session
 
-Last updated 2 Nov 2026. Read this first. It covers what the app is, how the code is laid out, what was built recently, and what we are in the middle of.
+Last updated 4 Nov 2026. Read this first. It covers what the app is, how the code is laid out, what was built recently, and what we are in the middle of.
 
 ## 1. What the app is
 
@@ -18,6 +18,7 @@ The app has three parts, which match the left sidebar (`web/components/AppSideba
      - **Competitor Leads** (`/lead-finder`)
      - **Email Outreach** (`/gmail-hub`)
    - **Get seen**:
+     - **Search & AI** (`/search-ai`): rankings, AI answers, keywords judged weekly (see 4e-4)
      - **Search Agent** (`/agents/search`)
      - Social Studio
      - Meta Ads
@@ -83,7 +84,8 @@ What each tool does today:
 ## 3. Branch and working rules
 
 - **Work and push on `dev`.** Push to **`main` only when the owner says so.**
-  - `main` was last brought up to `dev` on 3 Nov 2026 (Search Console numbers fix on the Analytics Website tab).
+  - `main` was last brought up to `dev` on 10 Nov 2026 (MCP Search Agent tool and audit false-pass fix; `main` and `dev` had split on 6 Nov and were joined again then).
+  - 6 Nov: only the work log commit (4h) was cherry-picked to `main`; the Search & AI and Foundation work (4–5 Nov) is still on `dev` only.
 - **Release notes:** add what users will notice to `CHANGELOG.md` (newest first: New / Improved / Fixed). Frekto (GitHub: this repo) turns GitHub releases and merged pull requests into update posts. Direct pushes to `main` don't show up there.
 - Don't open pull requests unless asked.
 - Commit message footer used so far:
@@ -397,6 +399,41 @@ The owner's screenshot showed instagram.com as a "List article" to pitch, "Get m
 - Pitches made from a to-do have `source: 'cited'` ("Cited by AI"), no longer "List article"; older ones are recognised by their why line.
 - Difficulty 0 shows as "difficulty unknown" (label, card, table, and saved "easy (0)" texts).
 
+## 4e-3. Search Agent: data you can trust (4 Nov)
+
+From a review of whether the Search Agent's numbers are valid.
+- **Rankings from Search Console when it's connected** (`gscRanks` in `search-agent.ts`, `fetchGscQueryPages` in `lib/modules/seo/keyword-fetchers.ts`): one row per search over the last 28 days (ending 3 days ago), the page shown most, the impression-weighted average position, searches with fewer than 5 impressions dropped. Volume is DataForSEO's when the idea list has it. Otherwise (or when Search Console fails or has no data, noted in `lastError`) DataForSEO Labs as before. `ranks.source` is `'gsc'` or `'labs'`.
+- **Rank changes:** only like with like (`gsc` with `gsc`). A search missing from DataForSEO's capped list is no longer "dropped outside the top 100". Search Console moves need 20+ impressions on both sides. Refresh to-dos need a 5-place drop on DataForSEO's estimate, 3 on Search Console, and say which source.
+- DataForSEO ranks use `rank_group` (place among normal results), not `rank_absolute` (counts ads and boxes).
+- Keyword ideas, rankings and AI Overviews ask in German / French for DE / FR (`languageOf` in `dataforseo.ts`). The Lead Agent's Google searches stay English.
+- **AI answers:** buyer questions take turns (`rotate`, `questionRound`), so all 10 get asked. "Named in X%" and the overview counts leave out Google AI Overviews. A "Write a page answering…" to-do now also counts the untracked products in `AiAnswer.others`, so it no longer needs a listed competitor. A gap holds when it was there the last time that question was asked (`questionLog`).
+- "How AI describes you" asks ChatGPT and Perplexity and only flags a problem they share. The judge is told the brand profile may itself be out of date.
+- The page says the AI numbers come from the assistants' APIs (gpt-4.1-mini, Sonar, Gemini 2.5 Flash), so they're a direction, not an exact score. It also shows how many answers the average rests on and where the rankings come from.
+- Not tried against real Search Console / DataForSEO yet.
+
+## 4e-4. Search & AI page (`/search-ai`): SEO and GEO tabs (4 Nov)
+
+Rebuilt from the owner's brief: show the keywords the site already uses, where it stands, what to change (title / H1 / headings), the same for AI answers, and **when you'll know a change worked**. Approved preview: `design-previews/tools-cleanup/search-seo-geo.html` (https://claude.ai/artifact/M8TBxFdsG4Vj5Lqxgdrhqx). The first version (to-do list + keyword table, preview `search-hub.html`) is replaced.
+- **Files:** `app/(shell)/search-ai/` (page + layout, parked like `/agents`), `components/search-hub/SearchHubPage.tsx`, `lib/search-hub/model.ts` (pure: page and question cards, tests), `pages.ts` (reads the site, keyword per page, new wording), `verdict.ts` (keyword judging, swap suggestion, history), `site.ts` (SEO / GEO module scores + AI readiness checklist), `sa-*` CSS at the end of `globals.css`. Sidebar: first under Get seen, icon `target`.
+- **Colour-coded on purpose** (owner's call, overrides the calm grey rule for this page): green working / named, blue testing, red needs a change / not named, grey waiting, purple keywords to add; rank zones green page 1, yellow #11–30, orange #31–100, grey not found. Dark values on `.sa`, light under `html.light .sa`.
+- **How it runs:** the Search Agent's research (weekly via the daily cron when the Search Agent is on, or **Recheck all keywords** = op `research`) now starts with a `pages` step: `refreshSitePages` reads the homepage + up to 9 main pages (menu/header links, then main, footer, then sitemap; legal/login/cart skipped), stores title / H1 / H2s / meta in `data.pages`, and asks a fast AI for the search each page targets (once per wording, `keyFor`; `keywordBy: 'user'` is never re-guessed). A title or H1 that changed since the last read becomes a test (`data.changes`, `by: 'auto'`). Page keywords are tracked first, and get Google AI Overview checks. Each snapshot now also stores per-question AI results (`RankSnapshot.questions`).
+- **Tests** (`SiteChange`, judged in `model.ts`): know-by 6 weeks after the change, first sign at 2. SEO: up 5+ places or on page 1 → Working; up 1–4 → 2 more weeks (once); else → Needs a change. GEO: named in half the answers or more (average of the last 3 checks) → Named; better than before → 2 more weeks; else Not named. Ops: `change_add` (`area`, `path` + `to` or `question`, `what`; a new `to` becomes the page's keyword), `change_stop`.
+- **SEO tab:** where you stand (bar + four zone boxes with each page's search), then cards grouped Needs a change / Testing / Working / Waiting (first fix has the green "Fix this first"), then Keywords to add (good-fit ideas no page targets; placed on a page sharing 2+ words, else a new post; "Plan it" = op `idea`). Opened page: title / H1 / H2s / meta with the search highlighted, position chart shaded by zone with the test date marked, and the box for its status. Needs a change: the reason, a closer search when `findSwap` finds one, **Write the new wording** (op `page_suggest`, `suggestWording`, cached in `page.sugg` per status + keyword) with Copy, **I've made this change** (starts the test), and for a slipping page "Draft the full rewrite" (`kw_rewrite` + `write`).
+- **GEO tab:** four tiles (share of answers naming you, questions named for, rival named most, site cited most), question cards grouped Not named / Testing / Named with dots per assistant (green named, red ring not), and "Site ready for AI" from the AI readiness module. Opened question: per-assistant result, named instead, cited sites, share-named chart, and what to do (get on the most-cited site → Search Agent pitch, answer it on your site, say it plainly on the homepage), each with "I've done this" (starts a test).
+- Also: How this works (cadence + when you'll know), I changed something (form for SEO or GEO), Settings (weekly check, country, pages read, Search Console, questions → Search Agent, Demo).
+- The page gets the server's time (`now` prop) so progress bars and dates match on first render; dates are formatted in UTC.
+- Checked with made-up Frekto data in the preview harness (desktop + phone, light + dark). **Not run against real pages / DataForSEO / AI yet**; history and tests start with the first check after deploy.
+- **Judged from the first check (4 Nov, after the owner's first real run showed every page "Not found / too early to judge"):**
+  - Each page lists the searches Google really shows it for (`PageView.real`: Search Console rows grouped by their page URL, else DataForSEO's; impressions, clicks, position). "Where you stand" places a page by its target if found, else its best real search (`stand`); a page aimed at a buyer's search ignores searches for the brand name.
+  - Target not found → judged now: Google shows it for another buyer's search → **Needs a change** (aim at what it already gets, swap = that search); brand-name page (e.g. pricing, FAQ) found by name → Working, else "for people who know you (fine)"; nobody searches the target (`page.volume` < 20) → Needs a change; else Waiting with the date it'll be judged. The 6-week wait now only applies to changes being tested.
+  - `keywordVolumes` (Labs `keyword_overview`, one call, Usage "Keyword volumes") looks up searches a month for each page's target when it's new or changed (`page.volume` / `difficulty` / `volFor`).
+  - **Change date:** "I changed something" has "When it went live" (up to a year back); `change_add` takes `at` (YYYY-MM-DD) and takes "before" from the last check on or before that day. Each "Needs a change" box links to it ("Made it on an earlier day?").
+  - The weekly check switches on the first time the page is opened (`hubOnAt`, once; turning it off in Settings sticks).
+  - **Brand typos count as the brand** (`isBrandWord` in `model.ts`): the name, it with up to 3 letters stuck on, 1 letter off, or (names of 6+ letters) 2 off with a letter added or missing ("frektok", "fraktok", "freekto"; not "fresco"). A buyer page found only for the brand stands at "not found" for its search and is never told to aim at a brand search.
+  - **Too competitive (5 Nov):** `siteReach` (`model.ts`) = the hardest DataForSEO difficulty this site can win: 30, or 40 / 50 once it's on page 1 for a non-brand search with 300+ / 1,000+ searches a month. `tooHard` = difficulty > reach + 10, or 5,000+ searches a month. A page aimed at such a search (not found, or below #20) is **Needs a change** with easier options: `refreshSitePages` calls `keywordSuggestions` (Labs `keyword_suggestions`, up to 4 pages per check, once per search, Usage "Easier keywords") plus fit ideas sharing 2+ words, keeps difficulty ≤ reach and 20+ searches, top 5 by searches (`page.alts` / `altsFor`). The page shows them as a pick list; "Write the new wording" and "I've made this change" use the picked one (`page_suggest` takes `to`). Keywords to add leave out too-hard ideas. Cards say "Too competitive: difficulty N".
+  - **Editable dates (5 Nov):** "Change date" on any running test (op `change_date`: `id`, `at`; "before" re-read from the check on or before that day) and on a page's "Aiming at this since" (op `kw_since`: `keyword`, `at`; moves the tracked keyword's `addedAt`, so its judge-from date moves too). Inline `DateEdit` in `SearchHubPage.tsx`.
+  - Keywords to add come from the Search Agent's keyword ideas (DataForSEO Labs around the starting keywords, kept when the fit check passes), placed on a page sharing 2+ words, else a new post.
+
 ## 4f. MCP data passthrough tools (29 Oct)
 
 Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/tool-registry.ts`), so Claude can call the data sources directly and work out lead-gen logic in conversation. No scoring, filtering or deduping: raw API JSON back, the API's own message on errors (`{ error, http_status, response }`).
@@ -588,6 +625,57 @@ The owner's ask: not just counts, but *why* each page is missing (a new site may
   - says "N pages you asked Google for are on Google now";
   - moves pages still out after 21 days to Improve first.
 - Uses the `webmasters.readonly` key already connected (URL Inspection works with read-only). Checked with made-up data in the preview harness: an old site with every group, a new site, Done / Undo, phone width. Full build passes. **Not run against a real Search Console property yet.**
+
+## 4g. Foundation: Google Business Profile check (4 Nov)
+
+- New check `google-business-profile` (weight 3) in Foundation under "Online Presence" (was "Social Media Presence") → "Google Business Profile".
+- **Shown for every brand** (owner's call, 4 Nov; it was local / agency only at first). Checks can still carry `relevantFor` (website types) to limit them; `defForBrand(def, websiteType)` in `lib/modules/types.ts` drops checks that don't apply; used when seeding (onboarding, analyze route, admin add-missing-modules) and on the Growth Path / admin views. If a brand's type changes, the next analysis removes checks that no longer apply.
+- **How it checks** (`lib/modules/foundation/google-profile.ts`, no AI): DataForSEO Business Listings (`businessListings` in `dataforseo.ts`, by website domain, then by exact name; ~$0.01, shows in Usage as Foundation · "Google Business Profiles"), else a link on the site to the profile, a review link or an embedded Google map (`googleProfileLink` in the fetcher). Fails when not found or the listing isn't claimed; passes with a note to get more reviews under 5. "Check again" on the item uses the same lookup.
+- Not tried against the real Business Listings API yet (filter field names `domain` / `title`).
+
+## 4h. Work log MCP tools (6 Nov)
+
+The owner does growth work outside GrowJin (blogs that need indexing, community notes, leads emailed) and wants it kept somewhere to ask for later. **Backend + MCP only, no UI, and nothing else in the app reads it** (not Today, the agents, dedupe or scores). Claude logs only when the owner tells it to.
+- **Table** `work_log` (`web/drizzle/work_log.sql`, **run it in Supabase**; until then the tools answer "The work log table is missing…"): kind (blog / community / outreach / listing / social / other, free word allowed), title, url, done_on, how, status (done / waiting / follow_up), next_check, notes.
+- **Tools** (`lib/mcp/tools/work_log.ts`, in `tool-registry.ts` and `app/api/mcp/route.ts`): `log_work` (one entry or `entries`, up to 100; a url already logged isn't added again, returned as `already_logged`), `list_work` (kind, status, from / to, search, `due`, limit ≤ 500; counts by kind and status), `update_work` (only the fields given; `add_note` appends a dated line), `delete_work`.
+- Tested against a local Postgres (adding, batch dedupe, filters, due, updates, brand separation, missing table). Not tried through a live MCP client yet.
+
+## 4i. MCP: leads and Gmail tools (6 Nov)
+
+So lead-finding can be done in a Claude conversation with the raw `dataforseo` / `hunter` / `apify` tools, and the results land in the app.
+- **`get_lead_settings`** (`lib/mcp/tools/leads.ts`): brand + competitors, the Lead Finder brief and filters, the ideal-customer card, sending settings, lead counts by status, `already_known` domains, last search. `include_playbook: true` adds `ENGINE_PROMPT`.
+- **`check_contacts`**: per email / domain: new, already_a_lead (any status), emailed / scheduled (`outreach_emails`, 2 years), opted_out / bounced (`email_suppressions`). Up to 200 each.
+- **`save_leads`**: the Lead Engine's answer format, through `addEngineLeads` in `lib/leads/engine.ts` (split out of `saveAnswer`, same dedupe, rating, facts; `foundVia` "Found with Claude"; doesn't touch Last search). Returns added / kept_aside / skipped. All three respect the brand's demo switch.
+- **`gmail_status`** / **`send_email`** (`lib/mcp/tools/gmail.ts`): sends only when Gmail is connected with send scope **and** the user switched on "Let Claude send email" (Settings → Connect Claude, `ClaudeSendEmail` in `SettingsPage.tsx`, `/api/mcp/gmail-send`, snapshot `mcp:gmail-send` in `lib/mcp/gmail-permission.ts`, off by default, daily limit 10 / 25 / 50, counted from `outreach_emails` rows with `source: 'claude'` since 00:00 UTC). Up to 20 per call; suppressed addresses refused. A first email to a lead on the board marks that lead sent (opt-out line added, `sentLog`, `nextFollowUpAt`) so the Lead Agent's follow-ups and reply check take over; otherwise `follow_up_days` adds a reminder. The tool description tells Claude to show each email and get a yes first.
+- Tested against a local Postgres with Gmail mocked (dedupe, verdicts, permission off/on, suppression, lead marked sent, limit count). Not tried through a live MCP client or real Gmail yet. The Settings switch wasn't checked in the browser.
+
+## 4j. MCP: Search Console, competitors and PostHog fixed (7 Nov)
+
+From a check run through Claude: GSC empty, competitors empty, PostHog half working.
+- **`get_gsc_data`**: lists the service account's properties and picks the one covering the site (`pickProperty` from `gsc-indexing.ts`, tried on the site URL with and without www / https), so domain properties (`sc-domain:`) work. It used to query only the raw website URL and turned every Google error into empty lists. Now returns `property`, `totals`, top queries (operator searches dropped) and pages, a window ending 2 days ago, and Google's message as `error` (with `properties_it_can_see` when none matches).
+- **`get_competitors`**: adds the module-setup competitors (`moduleCompetitors` in `lib/agents/context.ts`, now shared with `loadBrandContext`: `competitor_urls` + `achievable_competitors` of Competitor Analysis and GEO) after the `competitors` table rows, one per domain.
+- **PostHog tools** (`posthog-common.ts`, shared): emails read as `coalesce` of the chosen email property, `email`, `$email`, or an email-like distinct id (only `person.properties.email` before); every query has a time window (churned / pro: last 90 days, segments' new users from `persons.created_at`, churned 15-60 days; the old all-history `NOT IN` subqueries timed out); 45 s timeout (was 15); PostHog's error comes back as `error` / `errors` instead of empty or null. Counts (DAU/WAU/MAU, segments) follow the app's "Count unique users only" setting (`buildPostHogFilter`). Used by the daily diagnosis and the Lead Agent's paying-user lookalikes too.
+- Tested with mocked Google / PostHog against a local Postgres. **Not run against the real APIs**, so the HogQL hasn't been checked by PostHog yet.
+
+## 4k. MCP: Search Agent tool and no false passes (10 Nov)
+
+The owner ran 100 growth questions through the MCP (`Growjin_MCP_dry_run_Frekto.xlsx`, 6 Nov): 12 fully answered. GSC and competitors were already fixed in 4j; the other two cheap fixes:
+- **New `get_search_agent`** (`lib/mcp/tools/search_agent.ts`): read-only, sections overview / ai_answers / keywords / topics / tasks / links, respects demo, runs `tidySearchFor` first. `get_module_detail("search…")` hints at it.
+- **False passes:** old audits saved Core Web Vitals as `info` (= passed) when Lighthouse never ran, and `seo-audit.ts` still saved "Cannot check…" findings as `info`. Those findings are now `skip` ("Couldn't check…"), and `isNotChecked` (`lib/modules/types.ts`) also matches the old wording, so the score leaves them out. MCP `get_module_detail` gives each item a `status` (passed / failed / not_checked / …) and recomputes the score; `get_growth_overview` recomputes every module's score from items. The saved `modules.score` only changes at the next tick or analysis.
+- Tested with stubbed Search Agent data. Not tried against the live MCP yet: rerun the spreadsheet after deploying.
+
+## 4k. PostHog segments on one basis (10 Nov)
+
+Live check after the 7 Nov fixes: GSC (`sc-domain:frekto.ai`), competitors and PostHog lists work. Segments mixed bases (churned / power counted every PostHog person, active counted unique emails: 134 churned vs 27 active, churn risk 496%). Now every segment counts `filter.eventDistinctCol` (the app's "Count unique users only" setting); new users = first seen that week within 180 days (was `persons.created_at`, gave 0 last week); churn risk = churned / everyone active 15-60 days ago; `definitions.counted` says what's counted. Competitors only show GEO's 3 for Frekto: Competitor Analysis saves its suggested list (`competitor_urls`) only on runs since that code; re-run it.
+
+## 4l. MCP: goal, daily numbers, weekly review; daily history fixed (10 Nov)
+
+"Piece 1" of the plan in `md_files/MCP_PARTIAL_ANSWERS.md` (the 46 half-answered questions from the Frekto dry run): questions 1-5, 95, 96.
+- **Daily history was empty** ("No history yet" for Frekto). The nightly `daily-signals` cron writes `brand_history` (`lib/history/index.ts`); most likely `drizzle/tracking.sql` was never run, and every failure was hidden. Now: the table is created on first use if missing (same SQL, `withTable`); `ensureRecentHistory` saves yesterday when it's missing and reports days saved, first / last day and a plain `problem` (table can't be read, cron stopped since X, nothing saved before); a failing ticked-items count no longer loses the day; the cron logs failures (`[history]`). `get_growth_history` returns `history` with that status.
+- **Goal** (`lib/goal/progress.ts` pure maths, `lib/mcp/tools/goal.ts`): snapshot `goal` in `signal_snapshots` (no new table): `target` (default 500), `counts` (`signed_up` = PostHog persons with the app's unique-users setting, as Road to 500; `active_weekly`; `paying` = person property `planProperty` = `planValue`), `deadline`, `readings` (one count per day, kept 400 days). Tools **`set_goal`** (only when the user says so) and **`get_goal_progress`**: current, percent, Road to 500 stage (signed_up only), per week over the last 4 full weeks vs the 4 before → speeding up / steady / slowing down (±15%), date the target is reached at that pace, with a deadline weeks left / needed per week / `on_track`, 13 weeks of totals, new in the last 24 h. Weekly sign-ups = people first seen that week (180-day lookback, same as `get_posthog_segments`); `persons.created_at` gave 0 for Frekto. Paying has no history in PostHog, so its trend builds from the daily readings. Unset goal → a note telling Claude to confirm and save it.
+- **`get_daily_numbers`** (`lib/goal/daily.ts` maths, `lib/mcp/tools/daily_numbers.ts`): 40 days by day from GA4 (sessions, new users, per channel; landing pages starting `/admin` or `/wp-admin` excluded and counted in `left_out`), Search Console (clicks, impressions, date dimension, compared on its latest day since it lags 2-3 days; property picked by `connectGsc`, now exported from `get_gsc_data.ts`) and PostHog (first-seen sign-ups, daily active). Yesterday vs 7- / 30-day averages, today so far, last 14 days, last 7 vs previous 7, channels `moved_most` / `went_quiet` (3+ before and halved), `unusual` (last 3 days vs the 28 before: 2.5 SD and 5+ and 50%+ off; needs 7 non-zero days). Missing sources go to `not_available` with the reason.
+- **`get_weekly_review`** (`lib/mcp/tools/weekly_review.ts`): goal pace (this week so far, last full week), the daily numbers' week totals and channels, unusual days, work log entries of the last 7 days, emails sent by source (`outreach_emails`), checklist items / Today tasks ticked (history), Search & AI tests running (`changes`), module score changes; `how_to_read` asks Claude to judge and say when numbers are too small.
+- Tested against a local Postgres with GA4 / Search Console / PostHog faked (missing table created, stale history reported, goal defaults / validation / deadline / all three counts, spike flagged, quiet channel, internal visits). **Not run against the real APIs**; the HogQL `toStartOfWeek` / `toDate` queries and the GA4 `landingPage` filter haven't been checked live.
 
 ## 5. What we are doing right now: making the tools calm
 

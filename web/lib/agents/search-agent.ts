@@ -11,7 +11,8 @@
 import * as cheerio from 'cheerio'
 import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { brandBlogs } from '@/lib/db/schema'
+import { brandBlogs, brandIntegrations } from '@/lib/db/schema'
+import { fetchGscQueryPages } from '@/lib/modules/seo/keyword-fetchers'
 import { callAI, withAIContext } from '@/lib/ai/client'
 import { openSignal, clearSignals } from '@/lib/signals'
 import { fetchHtml } from '@/lib/lead-finder/reviews'
@@ -25,12 +26,14 @@ import { agentsDemo, demoWastedSpend, setDemoContext } from './demo'
 import { Progress } from './progress'
 import {
   addUsage, defaultSearchData, newMeter, readSearchData, updateSearchData,
-  type AdsTip, type AgentTask, type IdeaRow, type IdeaVerdict, type AiAnswer, type RankChange, type SearchAgentData, type Topic, type LinkOpportunity,
+  type AdsTip, type AgentTask, type IdeaRow, type IdeaVerdict, type AiAnswer, type RankChange, type SearchAgentData, type Topic, type LinkOpportunity, type SitePage, type SiteChange,
 } from './store'
 import { listingDomain } from './task-kinds'
 import { brandBlock, domainOf, idOf, isNamedRival, loadBrandContext, namedRivals, parseJsonLoose, type BrandContext } from './context'
 import { pitchable, runLinkFollowUps, runLinkOpportunities } from './link-opportunities'
 import { costNote } from './services'
+import { ensureTracked, kwKey, recordSnapshot } from '@/lib/search-hub/verdict'
+import { refreshSitePages } from '@/lib/search-hub/pages'
 
 export const searchFallback = (b: BrandContext) => () => defaultSearchData(b)
 
@@ -125,6 +128,13 @@ const aiQuestionLimit = () => Math.max(1, Math.min(15, Number(process.env.AGENTS
 const aiRepeats = () => Math.max(1, Math.min(4, Number(process.env.AGENTS_AI_REPEATS) || 2))
 const WEEK = 6.5 * 86_400_000
 
+/** This week's buyer questions: `n` of them, moving on by `n` each research so every question gets asked. */
+function rotate(questions: string[], n: number, round: number): string[] {
+  if (questions.length <= n) return questions
+  const start = (round * n) % questions.length
+  return Array.from({ length: n }, (_, i) => questions[(start + i) % questions.length])
+}
+
 // ── Setup the agent needs once ────────────────────────────────────────────────
 
 async function ensureSeedsAndQuestions(b: BrandContext, d: SearchAgentData) {
@@ -186,7 +196,8 @@ type Raw = { question: string; engine: string; text: string; citations: { url: s
 
 /**
  * Which tracked brands each answer names, in order, read by a fast AI model: it catches spelling
- * variants ("Frekto AI", "frekto.ai") and doesn't take ordinary words for short brand names.
+ * variants ("Frekto AI", "frekto.ai") and doesn't take ordinary words for short brand names. Also
+ * lists the other products it recommends, so a rival missing from the competitor list still counts.
  * Returns null on failure (the text search is used instead).
  */
 async function namedBrands(b: BrandContext, raws: Raw[]): Promise<{ brands: string[]; others: string[] }[] | null> {
@@ -230,7 +241,7 @@ async function askEngines(b: BrandContext, questions: string[], seeds: string[],
   const jobs = questions.flatMap(q => AI_ENGINES.flatMap(engine => Array.from({ length: aiRepeats() }, () => ({ q, engine: engine as string }))))
   const [settled, overviews] = await Promise.all([
     Promise.allSettled(jobs.map(j => aiAnswer(j.engine as AiEngine, j.q, meter))),
-    Promise.allSettled(seeds.slice(0, 5).map(k => googleAiOverview(k, country, meter))),
+    Promise.allSettled(seeds.slice(0, 8).map(k => googleAiOverview(k, country, meter))),
   ])
   const raws: Raw[] = [
     ...settled.map((r, i) => r.status === 'fulfilled'
@@ -273,20 +284,34 @@ async function askEngines(b: BrandContext, questions: string[], seeds: string[],
   })
 }
 
+/**
+ * How AI assistants describe the brand. Asks ChatGPT and Perplexity (one answer each is too easy to
+ * misread) and only flags a problem both answers share, or that the one answer that came back has.
+ */
 async function checkDescription(b: BrandContext, meter: ReturnType<typeof newMeter>): Promise<SearchAgentData['description']> {
   const at = new Date().toISOString()
-  const r = await aiAnswer('chat_gpt', `What is ${b.name} (${b.domain})? Answer in two sentences.`, meter).catch(() => null)
-  if (!r) return null
-  const text = r.text.trim()
-  if (!text || firstIndex(text, [b.name, b.domain]) === -1) {
-    return { text, issue: `ChatGPT doesn't seem to know ${b.name} yet.`, at }
+  const engines: AiEngine[] = ['chat_gpt', 'perplexity']
+  const settled = await Promise.allSettled(engines.map(e => aiAnswer(e, `What is ${b.name} (${b.domain})? Answer in two sentences.`, meter)))
+  const got = settled.flatMap((r, i) => r.status === 'fulfilled' && r.value.text.trim() ? [{ engine: engines[i], text: r.value.text.trim() }] : [])
+  if (!got.length) return null
+  // The text shown on the page: ChatGPT's when it answered
+  const text = got[0].text
+  const knows = got.filter(g => firstIndex(g.text, [b.name, b.domain]) !== -1)
+  if (!knows.length) {
+    return { text, issue: `${got.map(g => ENGINE_LABEL[g.engine]).join(' and ')} ${got.length === 1 ? "doesn't" : "don't"} seem to know ${b.name} yet.`, at }
   }
   const verdict = await callAI({
     feature: 'search-agent',
     model: 'claude-haiku-4-5-20251001',
-    maxTokens: 120,
-    system: 'You check whether an AI assistant describes a business correctly. Be brief.',
-    prompt: `How ChatGPT describes the brand:\n"""${text.slice(0, 1200)}"""\n\nWhat the brand actually is:\n${brandBlock(b)}\n\nIf the description is wrong, vague or outdated in a way that would cost customers, reply with ONE plain sentence saying what's wrong (e.g. "ChatGPT calls you a design tool, but you write and schedule posts."). If it's broadly right, reply exactly OK.`,
+    maxTokens: 150,
+    system: 'You check whether AI assistants describe a business correctly. Be brief.',
+    prompt: `How AI assistants describe the brand:
+${knows.map(g => `${ENGINE_LABEL[g.engine]}:\n"""${g.text.slice(0, 1000)}"""`).join('\n\n')}
+
+What the brand says it is (its own profile; it may itself be out of date, so only flag clear contradictions about what the product does or who it's for):
+${brandBlock(b)}
+
+If ${knows.length > 1 ? 'both descriptions are' : 'the description is'} wrong, vague or outdated in the same way that would cost customers, reply with ONE plain sentence saying what's wrong (e.g. "ChatGPT calls you a design tool, but you write and schedule posts."). If ${knows.length > 1 ? 'at least one is' : 'it is'} broadly right, reply exactly OK.`,
   }).catch(() => 'OK')
   return { text, issue: /^\s*OK\.?\s*$/i.test(verdict) ? null : verdict.trim().slice(0, 300), at }
 }
@@ -443,27 +468,83 @@ export async function ideaToTopic(brandId: string, keyword: string): Promise<{ o
   return { ok: true }
 }
 
+// ── Where the site ranks ──────────────────────────────────────────────────────
+
+type RankSource = 'gsc' | 'labs'
+type GscCreds = { email: string; key: string }
+
+async function readGscCreds(brandId: string): Promise<GscCreds | null> {
+  const [row] = await db.select({ metadata: brandIntegrations.metadata }).from(brandIntegrations)
+    .where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.provider, 'gsc_api'), eq(brandIntegrations.status, 'connected')))
+    .limit(1)
+  const meta = (row?.metadata as Record<string, string> | null) ?? {}
+  return meta.client_email && meta.private_key ? { email: meta.client_email, key: meta.private_key } : null
+}
+
+// Fewer impressions than this in 28 days and Google's average position is mostly noise
+const GSC_MIN_IMPRESSIONS = 5
+
+/**
+ * Where the site really shows up on Google, from Search Console (last 28 days): one row per search,
+ * the page shown most for it, and the average position weighted by impressions. Volume is a rough
+ * stand-in (impressions a month) until it's swapped for DataForSEO's searches a month where known.
+ * null = Search Console has no data for the site.
+ */
+async function gscRanks(b: BrandContext, c: GscCreds): Promise<RankedKeyword[] | null> {
+  const rows = await fetchGscQueryPages(c.email, c.key, b.websiteUrl, 28)
+  if (!rows) return null
+  const by = new Map<string, { impressions: number; clicks: number; posSum: number; pages: Map<string, number> }>()
+  for (const r of rows) {
+    const k = r.query.toLowerCase().trim()
+    if (!k) continue
+    const cur = by.get(k) ?? { impressions: 0, clicks: 0, posSum: 0, pages: new Map<string, number>() }
+    cur.impressions += r.impressions
+    cur.clicks += r.clicks ?? 0
+    cur.posSum += r.position * r.impressions
+    cur.pages.set(r.page, (cur.pages.get(r.page) ?? 0) + r.impressions)
+    by.set(k, cur)
+  }
+  return [...by.entries()]
+    .filter(([, x]) => x.impressions >= GSC_MIN_IMPRESSIONS)
+    .map(([keyword, x]) => ({
+      keyword,
+      rank: Math.max(1, Math.round(x.posSum / x.impressions)),
+      url: [...x.pages.entries()].sort((p, q) => q[1] - p[1])[0][0],
+      impressions: Math.round(x.impressions),
+      clicks: Math.round(x.clicks),
+      volume: Math.round((x.impressions * 30) / 28),
+    }))
+    .sort((x, y) => y.impressions - x.impressions)
+    .slice(0, 200)
+}
+
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
-function buildTasks(b: BrandContext, answers: AiAnswer[], changes: RankChange[], desc: SearchAgentData['description'], prev: AiAnswer[] | null): AgentTask[] {
+/** Buyer questions where a rival (tracked or not) was named and the brand never was. Google's AI
+ *  Overviews answer searches, not the questions, so they're left out. */
+function gapsIn(list: AiAnswer[]): Map<string, AiAnswer[]> {
+  const byQ = new Map<string, AiAnswer[]>()
+  for (const a of list.filter(x => x.engine !== 'google_ai')) byQ.set(a.question, [...(byQ.get(a.question) ?? []), a])
+  return new Map([...byQ.entries()].filter(([, l]) => !l.some(a => (a.hits ?? (a.mentioned ? 1 : 0)) > 0) && l.some(a => a.brands.length || a.others?.length)))
+}
+
+function buildTasks(
+  b: BrandContext, answers: AiAnswer[], changes: RankChange[], desc: SearchAgentData['description'], prev: AiAnswer[] | null,
+  log: SearchAgentData['questionLog'], source: RankSource,
+): AgentTask[] {
   const tasks: AgentTask[] = []
   const ok = answers.filter(a => !a.error)
   const prevOk = (prev ?? []).filter(a => !a.error)
-  // Questions where rivals are named and the brand never is (Google's AI Overviews are answers to
-  // searches, not questions, so they only feed the cited sites below)
-  const gapIn = (list: AiAnswer[]) => {
-    const byQ = new Map<string, AiAnswer[]>()
-    for (const a of list.filter(x => x.engine !== 'google_ai')) byQ.set(a.question, [...(byQ.get(a.question) ?? []), a])
-    return new Map([...byQ.entries()].filter(([, l]) => !l.some(a => (a.hits ?? (a.mentioned ? 1 : 0)) > 0) && l.some(a => a.brands.length)))
-  }
-  // Answers vary, so a gap becomes a to-do only when it holds: also last week, or (first week) in
-  // every sample this week, which gapIn already requires (no sample named the brand)
-  const before = gapIn(prevOk)
-  const gaps = [...gapIn(ok).entries()]
-    .filter(([q]) => !prevOk.length || before.has(q))
+  // Answers vary, so a gap becomes a to-do only when it holds: it was also there the last time this
+  // question was asked, or (first time asked) in every sample now, which gapsIn already requires.
+  // Brands saved before the log existed read it from last week's answers.
+  const last: Record<string, { gap: boolean }> = log ?? Object.fromEntries(
+    [...new Set(prevOk.filter(a => a.engine !== 'google_ai').map(a => a.question))].map(q => [q, { gap: gapsIn(prevOk).has(q) }]))
+  const gaps = [...gapsIn(ok).entries()]
+    .filter(([q]) => !last[q] || last[q].gap)
     .slice(0, 3)
   for (const [q, list] of gaps) {
-    const rivals = [...new Set(list.flatMap(a => a.brands))].slice(0, 3)
+    const rivals = [...new Set([...list.flatMap(a => a.brands), ...list.flatMap(a => a.others ?? [])])].slice(0, 3)
     tasks.push({
       key: `write:${idOf(q)}`, kind: 'write', status: 'open',
       title: `Write a page answering "${q}"`,
@@ -492,14 +573,18 @@ function buildTasks(b: BrandContext, answers: AiAnswer[], changes: RankChange[],
       detail: `AI answers cited ${dom} ${c.n} times this week${prevOk.length ? ' and last week' : ''}, in answers that don't mention ${b.name}.${c.title ? ` Example: "${c.title}".` : ''}`,
     })
   }
-  // Pages that dropped on Google
-  for (const c of changes.filter(x => x.before !== null && (x.now === null || x.now - x.before >= 3)).slice(0, 3)) {
+  // Pages that dropped on Google. DataForSEO's rankings are an estimate refreshed every few weeks,
+  // so only a bigger drop there counts; Search Console's are real averages.
+  const minDrop = source === 'gsc' ? 3 : 5
+  for (const c of changes.filter(x => x.before !== null && (x.now === null || x.now - x.before >= minDrop)).slice(0, 3)) {
     let path = c.url
     try { path = new URL(c.url).pathname || '/' } catch { /* keep the url */ }
     tasks.push({
       key: `refresh:${idOf(c.url || c.keyword)}`, kind: 'refresh', status: 'open', url: c.url,
       title: `Refresh ${path === '/' ? 'your homepage' : path}`,
-      detail: `"${c.keyword}" dropped from #${c.before} to ${c.now === null ? 'outside the top 100' : `#${c.now}`} on Google.`,
+      detail: source === 'gsc'
+        ? `"${c.keyword}" ${c.now === null ? `was around #${c.before} and stopped showing up` : `slipped from about #${c.before} to #${c.now}`} on Google (Search Console, last 28 days).`
+        : `"${c.keyword}" dropped from #${c.before} to #${c.now} on Google (DataForSEO's estimate).`,
     })
   }
   if (desc?.issue) {
@@ -510,8 +595,16 @@ function buildTasks(b: BrandContext, answers: AiAnswer[], changes: RankChange[],
   return tasks.sort((x, y) => order[x.kind] - order[y.kind])
 }
 
-function rankChanges(prev: SearchAgentData['ranks'], rows: RankedKeyword[], topics: Topic[]): RankChange[] {
-  if (!prev) return []
+// A search needs this many impressions (28 days) for its Search Console move to count
+const GSC_MOVE_IMPRESSIONS = 20
+
+/**
+ * What moved since the last research. Only compares like with like (Search Console with Search
+ * Console). A search missing from DataForSEO's list is not a drop: the list is capped and its
+ * database changes; one gone from Search Console is, when it was seen often enough before.
+ */
+function rankChanges(prev: SearchAgentData['ranks'], rows: RankedKeyword[], topics: Topic[], source: RankSource): RankChange[] {
+  if (!prev || (prev.source ?? 'labs') !== source) return []
   const before = new Map(prev.rows.map(r => [r.keyword, r]))
   const now = new Map(rows.map(r => [r.keyword, r]))
   const watch = new Set([...prev.rows.slice(0, 30).map(r => r.keyword), ...rows.slice(0, 30).map(r => r.keyword), ...topics.map(t => t.keyword)])
@@ -519,6 +612,8 @@ function rankChanges(prev: SearchAgentData['ranks'], rows: RankedKeyword[], topi
   for (const k of watch) {
     const a = before.get(k), c = now.get(k)
     if (!a && !c) continue
+    if (a && !c && (source === 'labs' || (a.impressions ?? 0) < GSC_MOVE_IMPRESSIONS + 10)) continue
+    if (a && c && source === 'gsc' && Math.min(a.impressions ?? 0, c.impressions ?? 0) < GSC_MOVE_IMPRESSIONS) continue
     const delta = a && c ? Math.abs(c.rank - a.rank) : 99
     if (delta < 3) continue
     out.push({ keyword: k, before: a?.rank ?? null, now: c?.rank ?? null, url: c?.url || a?.url || '', volume: c?.volume ?? a?.volume ?? 0 })
@@ -548,6 +643,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
   const n = (x: number, one: string, many = `${one}s`) => `${x.toLocaleString('en-US')} ${x === 1 ? one : many}`
   const p = new Progress(brandId, 'search', 'Search Agent research', [
     { key: 'setup', label: 'Reading your brand', hint: 'Your keywords, competitors and buyer questions' },
+    { key: 'pages', label: 'Reading your pages', hint: 'Titles, H1s and headings of your homepage and main pages' },
     { key: 'keywords', label: 'Finding keywords', hint: 'Ideas with monthly searches and difficulty' },
     { key: 'ranks', label: 'Checking Google rankings', hint: `Where ${b.domain} shows up on Google` },
     { key: 'ai', label: 'Asking AI assistants', hint: 'Who ChatGPT, Perplexity, Gemini and Google’s AI Overviews recommend' },
@@ -563,17 +659,47 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
     setDemoContext({ brand: b.name, domain: b.domain, competitors: b.competitors, seeds: d.settings.seeds, round: d.mentionHistory.length })
     const s = d.settings
     const demo = agentsDemo()
+    // Search & AI page: read the homepage and main pages (free), the search each one targets, and any
+    // title / H1 changed since the last check (each becomes a test)
+    let site: { pages: SitePage[]; changes: SiteChange[] } | null = null
+    await p.step('pages', async () => (site = await refreshSitePages(b, d, meter)), r => ({
+      detail: `${n(r.pages.length, 'page')}`,
+      items: r.pages.filter(x => x.keyword).map(x => `${x.path} · ${x.keyword}`).slice(0, 5),
+      note: r.changes.length ? `Changed since the last check: ${r.changes.map(c => `${c.what.toLowerCase()} on ${c.path}`).join(', ')}. Testing from today.` : undefined,
+    })).catch(e => { errors.push(`Your pages: ${e instanceof Error ? e.message : e}`); return null })
+    const siteNow = site as { pages: SitePage[]; changes: SiteChange[] } | null
+    const pageKws = (siteNow?.pages ?? d.pages ?? []).map(x => x.keyword).filter((k): k is string => !!k)
     const ads = demo ? null : await readGoogleAdsCreds(brandId).catch(() => null)
+    const gsc = demo ? null : await readGscCreds(brandId).catch(() => null)
+    // Where the site ranks: Search Console when connected (real positions), else DataForSEO's estimate
+    let source = 'labs' as RankSource
+    const readRanks = async (): Promise<RankedKeyword[]> => {
+      if (gsc) {
+        try {
+          const r = await gscRanks(b, gsc)
+          if (r) { source = 'gsc'; return r }
+          errors.push('Search Console has no search data for this site yet, so rankings are DataForSEO’s estimate')
+        } catch (e) {
+          errors.push(`Search Console: ${e instanceof Error ? e.message.split('\n')[0] : e}, so rankings are DataForSEO’s estimate`)
+        }
+      }
+      return rankedKeywords(b.domain, s.country, meter)
+    }
+    // This week's buyer questions: they rotate, so all of them get asked over the weeks
+    const asked = rotate(s.questions, aiQuestionLimit(), d.questionRound ?? d.mentionHistory.length)
     if (!demo && !ads) p.set('ads', 'skipped', 'Not connected')
     const [ideas, ranked, answers, desc, wasted] = await Promise.all([
       p.step('keywords', () => keywordIdeas(s.seeds, s.country, meter), r => ({ detail: n(r.length, 'idea'), note: 'Top ideas, with searches a month:', items: r.slice(0, 4).map(i => `${i.keyword} · ${i.volume.toLocaleString('en-US')}`) }))
         .catch(e => { errors.push(`Keywords: ${e instanceof Error ? e.message : e}`); return [] as KeywordIdea[] }),
-      p.step('ranks', () => rankedKeywords(b.domain, s.country, meter), r => ({ detail: `${r.filter(x => x.rank <= 10).length} on page 1`, note: `${b.domain} shows up for ${n(r.length, 'search', 'searches')}.` }))
+      p.step('ranks', readRanks, r => ({ detail: `${r.filter(x => x.rank <= 10).length} on page 1`, note: source === 'gsc'
+        ? `${b.domain} showed up for ${n(r.length, 'search', 'searches')} in the last 28 days (Google Search Console).`
+        : `${b.domain} shows up for about ${n(r.length, 'search', 'searches')} (DataForSEO’s estimate${gsc ? '' : '; connect Search Console for real positions'}).` }))
         .catch(e => { errors.push(`Rankings: ${e instanceof Error ? e.message : e}`); return null }),
-      p.step('ai', () => askEngines(b, s.questions.slice(0, aiQuestionLimit()), s.seeds, s.country, meter), r => {
-        const ok = r.filter(a => !a.error)
-        const asked = ok.reduce((t, a) => t + (a.samples ?? 1), 0), hits = ok.reduce((t, a) => t + (a.hits ?? (a.mentioned ? 1 : 0)), 0)
-        return { detail: `Named in ${hits} of ${asked}`, note: `${n(Math.min(s.questions.length, aiQuestionLimit()), 'buyer question')} asked ${aiRepeats()}× to ChatGPT, Perplexity and Gemini, plus Google’s AI Overviews.` }
+      // Google's AI Overview for the starting keywords, then the other keywords the Search & AI page tracks
+      p.step('ai', () => askEngines(b, asked, [...new Set([...pageKws, ...s.seeds.map(kwKey), ...(d.tracked ?? []).filter(t => t.status === 'active').map(t => t.keyword)])], s.country, meter), r => {
+        const ok = r.filter(a => !a.error && a.engine !== 'google_ai')
+        const samples = ok.reduce((t, a) => t + (a.samples ?? 1), 0), hits = ok.reduce((t, a) => t + (a.hits ?? (a.mentioned ? 1 : 0)), 0)
+        return { detail: `Named in ${hits} of ${samples}`, note: `${n(asked.length, 'buyer question')} asked ${aiRepeats()}× to ChatGPT, Perplexity and Gemini (through their APIs), plus Google’s AI Overviews.` }
       }),
       p.step('describe', () => checkDescription(b, meter), r => r?.issue ? 'Needs a fix' : 'Looks right').catch(() => null),
       demo ? p.step('ads', () => Promise.resolve(demoWastedSpend()), r => ({ detail: `${r.currency} ${r.total} wasted`, items: r.terms.slice(0, 4).map(t => t.term) }))
@@ -581,14 +707,16 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
           .catch(e => { errors.push(`Google Ads: ${e instanceof Error ? e.message : e}`); return null }) : Promise.resolve(null),
     ])
     if (desc?.issue) p.set('describe', 'warn', { detail: 'Needs a fix', note: desc.issue })
-    const rows = ranked ?? []
-    const changes = ranked ? rankChanges(d.ranks, rows, d.topics) : d.rankChanges
+    // Search Console has no searches a month: DataForSEO's figure where the idea list has it
+    const ideaVolume = new Map(ideas.map(i => [i.keyword.toLowerCase(), i.volume]))
+    const rows = (ranked ?? []).map(r => source === 'gsc' ? { ...r, volume: ideaVolume.get(r.keyword) ?? r.volume } : r)
+    const changes = ranked ? rankChanges(d.ranks, rows, d.topics, source) : d.rankChanges
     const { picks, checked, fits } = await pickTopics(b, d, ideas, rows).catch(() => ({ picks: [] as Topic[], checked: new Set<string>(), fits: new Set<string>() }))
     // The agent's own starting keywords: weak ones are swapped for good-fit ideas for next week
     const review = s.seedsBy === 'auto' ? await reviewSeeds(b, s.seeds, ideas).catch(() => null) : null
     const swapped = review?.dropped.length ? `Starting keywords for next time: dropped ${review.dropped.map(x => `“${x}”`).join(', ')}.` : undefined
     p.set('topics', 'done', picks.length ? { detail: `${picks.length} new`, items: picks.map(t => t.keyword), note: swapped } : { detail: 'None new', note: swapped ?? 'Topics from earlier are still waiting to be written.' })
-    const built = buildTasks(b, answers, changes, desc, d.answers?.items ?? null)
+    const built = buildTasks(b, answers, changes, desc, d.answers?.items ?? null, d.questionLog, ranked ? source : (d.ranks?.source ?? 'labs'))
     // A cited site that turns out to be a competitor's (its blog won't list you) is no to-do
     const check = await rivalSites(b, d, built.filter(t => t.kind === 'listing').map(listingDomain)).catch(() => ({ rivals: new Set<string>(), learned: {} as Record<string, boolean> }))
     const fresh = built.filter(t => t.kind !== 'listing' || !check.rivals.has(listingDomain(t)))
@@ -615,6 +743,10 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       })
     }
     const okAnswers = answers.filter(a => !a.error)
+    // The weekly "named in X of Y" counts the buyer questions only: AI Overviews show up some weeks
+    // and not others, which would move the number by itself
+    const counted = okAnswers.filter(a => a.engine !== 'google_ai')
+    const gapsNow = gapsIn(okAnswers)
     const failed = answers.filter(a => a.error && a.engine !== 'google_ai')
     if (!okAnswers.length && answers.length) errors.push(`AI answers: ${answers[0].error ?? 'failed'}`)
     // Some failed: say so, or the AI answers tab quietly shows fewer questions than were asked
@@ -627,10 +759,23 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       x.topics.push(...picks)
       // Keep the last ideas when this run got none (a DataForSEO error)
       if (ideas.length) x.ideas = { at: new Date().toISOString(), rows: ideaRows(b, x.topics, ideas, checked, fits) }
-      if (ranked) { x.ranks = { at: new Date().toISOString(), rows: rows.slice(0, 200) }; x.rankChanges = changes }
+      if (ranked) { x.ranks = { at: new Date().toISOString(), rows: rows.slice(0, 200), source }; x.rankChanges = changes }
+      // Search & AI page: new starting keywords and written topics join the tracked list, then this
+      // week's numbers for every tracked keyword go into its history
+      if (siteNow) {
+        x.pages = siteNow.pages
+        x.changes = [...(x.changes ?? []), ...siteNow.changes].slice(-40)
+      }
+      ensureTracked(x)
+      if (ranked) recordSnapshot(x, rows, source, answers)
       if (okAnswers.length) {
         x.answers = { at: new Date().toISOString(), items: answers }
-        x.mentionHistory.push({ at: new Date().toISOString(), mentioned: okAnswers.reduce((t, a) => t + (a.hits ?? (a.mentioned ? 1 : 0)), 0), asked: okAnswers.reduce((t, a) => t + (a.samples ?? 1), 0) })
+        if (counted.length) x.mentionHistory.push({ at: new Date().toISOString(), mentioned: counted.reduce((t, a) => t + (a.hits ?? (a.mentioned ? 1 : 0)), 0), asked: counted.reduce((t, a) => t + (a.samples ?? 1), 0) })
+        x.questionRound = (d.questionRound ?? d.mentionHistory.length) + 1
+        const log = { ...(x.questionLog ?? {}) }
+        for (const q of new Set(counted.map(a => a.question))) log[q] = { at: new Date().toISOString(), gap: gapsNow.has(q) }
+        // Forget questions no longer in the list
+        x.questionLog = Object.fromEntries(Object.entries(log).filter(([q]) => x.settings.questions.includes(q) || s.questions.includes(q)))
       }
       if (desc) x.description = desc
       // Keep what the user already closed; drop open tasks the data no longer supports

@@ -1,5 +1,5 @@
 // Runs one MCP tool by name for a brand. Used by the MCP server (app/api/mcp/route.ts) and by
-// Ask's questions of your own (lib/ask/engine.ts), so both call exactly the same code.
+// Ask (lib/ask), so both call exactly the same code.
 import { getGrowthOverview } from '@/lib/mcp/tools/get_growth_overview'
 import { getModuleDetail } from '@/lib/mcp/tools/get_module_detail'
 import { analyzeModule } from '@/lib/mcp/tools/analyze_module'
@@ -12,6 +12,7 @@ import { getGaAnalytics } from '@/lib/mcp/tools/get_ga_analytics'
 import { getGscData } from '@/lib/mcp/tools/get_gsc_data'
 import { getPosthogAnalytics } from '@/lib/mcp/tools/get_posthog_analytics'
 import { getCompetitors } from '@/lib/mcp/tools/get_competitors'
+import { getSearchAgent, SEARCH_SECTIONS, type SearchSection } from '@/lib/mcp/tools/search_agent'
 import { getGaConversions } from '@/lib/mcp/tools/get_ga_conversions'
 import { getPosthogSegments } from '@/lib/mcp/tools/get_posthog_segments'
 import { getKeywordTrends } from '@/lib/mcp/tools/get_keyword_trends'
@@ -22,9 +23,15 @@ import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
 import { dataforseo } from '@/lib/mcp/tools/dataforseo'
 import { hunter } from '@/lib/mcp/tools/hunter'
 import { apify } from '@/lib/mcp/tools/apify'
+import { logWork, listWork, updateWork, deleteWork } from '@/lib/mcp/tools/work_log'
+import { getLeadSettings, checkContacts, saveLeads } from '@/lib/mcp/tools/leads'
+import { gmailStatus, sendEmail } from '@/lib/mcp/tools/gmail'
 import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
 import { resolveSignal } from '@/lib/signals'
 import { getBlogPost, markBlogPublished } from '@/lib/mcp/tools/blog_posts'
+import { getGoalProgress, setGoal } from '@/lib/mcp/tools/goal'
+import { getDailyNumbers } from '@/lib/mcp/tools/daily_numbers'
+import { getWeeklyReview } from '@/lib/mcp/tools/weekly_review'
 import { createSocialPost, getSocialPostStatus, scheduleSocialPost } from '@/lib/frekto/posts'
 import { saveProof } from '@/lib/proofs'
 
@@ -54,6 +61,18 @@ export async function dispatch(
 
     case 'skip_item':
       return skipItem(brandId, String(args['item_id'] ?? ''), args['reason'] ? String(args['reason']) : undefined)
+
+    case 'get_goal_progress':
+      return getGoalProgress(brandId)
+
+    case 'get_weekly_review':
+      return getWeeklyReview(brandId)
+
+    case 'get_daily_numbers':
+      return getDailyNumbers(brandId)
+
+    case 'set_goal':
+      return setGoal(brandId, args)
 
     case 'get_growth_history':
       return getGrowthHistory(brandId, Math.min(Math.max(parseInt(String(args['days'] ?? '30'), 10) || 30, 1), 365))
@@ -134,6 +153,15 @@ export async function dispatch(
     case 'get_competitors':
       return getCompetitors(brandId)
 
+    case 'get_search_agent': {
+      const section = String(args['section'] ?? 'overview') as SearchSection
+      return getSearchAgent(
+        brandId,
+        SEARCH_SECTIONS.includes(section) ? section : 'overview',
+        args['limit'] ? parseInt(String(args['limit']), 10) : 20,
+      )
+    }
+
     case 'get_ga_conversions':
       return getGaConversions(brandId, args['period'] ? String(args['period']) : '30d')
 
@@ -166,6 +194,33 @@ export async function dispatch(
 
     case 'apify':
       return apify(brandId, { actor: args['actor'], input: args['input'], limit: args['limit'], run_id: args['run_id'] })
+
+    case 'get_lead_settings':
+      return getLeadSettings(brandId, args)
+
+    case 'check_contacts':
+      return checkContacts(brandId, args)
+
+    case 'save_leads':
+      return saveLeads(brandId, args)
+
+    case 'gmail_status':
+      return gmailStatus(brandId)
+
+    case 'send_email':
+      return sendEmail(brandId, args)
+
+    case 'log_work':
+      return logWork(brandId, args)
+
+    case 'list_work':
+      return listWork(brandId, args)
+
+    case 'update_work':
+      return updateWork(brandId, args)
+
+    case 'delete_work':
+      return deleteWork(brandId, args)
 
     default:
       throw new Error(`Unknown tool: ${name}`)

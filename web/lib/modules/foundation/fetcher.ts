@@ -31,8 +31,16 @@ export interface FoundationExtracted {
   socialLinks: Record<string, string>
   privacyLinkHref: string | null  // found anywhere in the page (not limited to the first 50 links)
   hasTiktokLink: boolean
+  // Google Business Profile signals on the page: a link to the profile, its reviews or its map
+  // (or an embedded Google map), and LocalBusiness structured data
+  googleProfileLink: string | null
+  localBusinessSchema: boolean
   probedPages: ProbedPages
 }
+
+// Links that point at a Google Business Profile: share links, review links, place pages, map embeds
+const GOOGLE_PROFILE_RE = /^https?:\/\/(?:g\.page\/|maps\.app\.goo\.gl\/|goo\.gl\/maps\/|g\.co\/kgs\/|business\.google\.com\/|search\.google\.com\/local\/(?:writereview|reviews)|(?:www\.)?google\.[a-z.]+\/maps\/(?:place|embed)|maps\.google\.[a-z.]+\/(?:\?cid=|maps\?cid=|maps\/place))/i
+const LOCAL_BUSINESS_RE = /"@type"\s*:\s*\[?[^\]}]*"(?:LocalBusiness|Restaurant|Store|MedicalBusiness|ProfessionalService|HealthAndBeautyBusiness|HomeAndConstructionBusiness|FoodEstablishment|AutomotiveBusiness|LodgingBusiness|SportsActivityLocation|LegalService|FinancialService|Dentist|Physician|BeautySalon|HairSalon|DaySpa|ExerciseGym|RealEstateAgent|TravelAgency|CafeOrCoffeeShop|Bakery|BarOrPub|Hotel)"/
 
 const SOCIAL_DETECTORS: { key: string; test: (href: string) => boolean }[] = [
   {
@@ -225,6 +233,13 @@ function extractFoundationData(html: string): FoundationExtracted {
 
   const socialLinks = detectSocialLinks(allLinks)
 
+  const googleProfileLink =
+    allLinks.find(l => GOOGLE_PROFILE_RE.test(l.href))?.href
+    ?? $('iframe[src]').map((_, el) => $(el).attr('src') ?? '').get().find(src => GOOGLE_PROFILE_RE.test(src))
+    ?? null
+  const localBusinessSchema = $('script[type="application/ld+json"]').toArray()
+    .some(el => LOCAL_BUSINESS_RE.test($(el).html() ?? ''))
+
   // privacy link — search every link, not just the first 50 (footers are at the end of the page)
   const privacyLink = allLinks.find(l =>
     (PRIVACY_TEXT_RE.test(l.text) || PRIVACY_HREF_RE.test(l.href)) && !THIRD_PARTY_PRIVACY_RE.test(l.href))
@@ -255,6 +270,8 @@ function extractFoundationData(html: string): FoundationExtracted {
     socialLinks,
     privacyLinkHref,
     hasTiktokLink,
+    googleProfileLink,
+    localBusinessSchema,
     probedPages: { privacyUrl: null, contactUrl: null, termsUrl: null },
   }
 }

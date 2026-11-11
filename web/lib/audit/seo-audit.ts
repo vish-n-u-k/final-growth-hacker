@@ -270,9 +270,9 @@ async function checkMetaTags(
     }
   } else {
     // No title — mark dependent checks as info
-    findings.push(f('title.length', 'info', 'Cannot check title length — no title found.'))
-    findings.push(f('title.keyword', 'info', 'Cannot check title keyword — no title found.'))
-    findings.push(f('title.brand', 'info', 'Cannot check title brand — no title found.'))
+    findings.push(f('title.length', 'skip', 'Couldn\'t check title length — no title found.'))
+    findings.push(f('title.keyword', 'skip', 'Couldn\'t check title keyword — no title found.'))
+    findings.push(f('title.brand', 'skip', 'Couldn\'t check title brand — no title found.'))
   }
 
   // ── Meta Description ──
@@ -314,9 +314,9 @@ async function checkMetaTags(
           'End the description with an action phrase like "Learn more", "Get started free", or "See how it works".'))
 
   } else {
-    findings.push(f('description.length', 'info', 'Cannot check description length — none found.'))
-    findings.push(f('description.keyword', 'info', 'Cannot check description keyword — none found.'))
-    findings.push(f('description.cta', 'info', 'Cannot check description CTA — none found.'))
+    findings.push(f('description.length', 'skip', 'Couldn\'t check description length — none found.'))
+    findings.push(f('description.keyword', 'skip', 'Couldn\'t check description keyword — none found.'))
+    findings.push(f('description.cta', 'skip', 'Couldn\'t check description CTA — none found.'))
   }
 
   // ── Canonical ──
@@ -474,7 +474,7 @@ function checkHeadings($: cheerio.CheerioAPI, title: string): SeoFinding[] {
 
   // h1.single
   if (h1s.length === 0) {
-    findings.push(f('h1.single', 'info', 'Cannot check H1 count — none found.'))
+    findings.push(f('h1.single', 'skip', 'Couldn\'t check H1 count — none found.'))
   } else if (h1s.length === 1) {
     findings.push(f('h1.single', 'good', 'Exactly one H1 tag on the page.'))
   } else {
@@ -494,7 +494,7 @@ function checkHeadings($: cheerio.CheerioAPI, title: string): SeoFinding[] {
         'Rewrite the H1 to naturally include your primary keyword.'))
     }
   } else {
-    findings.push(f('h1.keyword', 'info', 'Cannot check H1 keyword match — H1 or title missing.'))
+    findings.push(f('h1.keyword', 'skip', 'Couldn\'t check H1 keyword match — H1 or title missing.'))
   }
 
   // h1.length
@@ -515,7 +515,7 @@ function checkHeadings($: cheerio.CheerioAPI, title: string): SeoFinding[] {
       findings.push(f('h1.length', 'bad', 'H1 appears empty.', 'Add descriptive text to the H1.'))
     }
   } else {
-    findings.push(f('h1.length', 'info', 'Cannot check H1 length — none found.'))
+    findings.push(f('h1.length', 'skip', 'Couldn\'t check H1 length — none found.'))
   }
 
   // h1.title_match
@@ -529,7 +529,7 @@ function checkHeadings($: cheerio.CheerioAPI, title: string): SeoFinding[] {
       findings.push(f('h1.title_match', 'good', 'H1 and title are complementary (different wording, same topic) — good SEO practice.'))
     }
   } else {
-    findings.push(f('h1.title_match', 'info', 'Cannot compare H1 to title — one or both are missing.'))
+    findings.push(f('h1.title_match', 'skip', 'Couldn\'t check H1 against the title — one or both are missing.'))
   }
 
   // hierarchy.skipped — check for level jumps

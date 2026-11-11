@@ -8,7 +8,7 @@ const NOT_CONNECTED = {
   message: 'Google Analytics (GA4 API) is not connected. Go to Settings → Integrations → Google Analytics Data API to add your Service Account credentials.',
 }
 
-async function getToken(email: string, key: string): Promise<string | null> {
+export async function getToken(email: string, key: string): Promise<string | null> {
   try {
     const buf = (s: string) => Buffer.from(s).toString('base64url')
     const now = Math.floor(Date.now() / 1000)

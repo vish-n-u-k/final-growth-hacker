@@ -33,7 +33,9 @@ async function runModuleAnalysis(
     case 'foundation': {
       const data = await fetchFoundationData(requirements)
       if (!data.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
-      const { results } = await analyzeFoundation(data)
+      const { results } = await analyzeFoundation(data, {}, {
+        id: requirements['brand_id'], name: requirements['brand_name'], websiteType: requirements['website_type'],
+      })
       return results
     }
     case 'website': {
@@ -124,6 +126,7 @@ export async function analyzeModule(brandId: string, moduleType: string) {
     brand_id: brand.id,
     brand_name: brand.name,
     brand_keywords: brand.keywords ?? '',
+    website_type: brand.websiteType ?? 'saas',
     ...(brand.websiteUrl && !baseRequirements['website_url'] ? { website_url: brand.websiteUrl } : {}),
   }
 
