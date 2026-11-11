@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { agentAccess } from '@/lib/agents/access'
+import { askAccess } from '@/lib/agents/access'
 import { askTool, UI_TOOLS } from '@/lib/ask/tools'
 
 // Ask's panels call the MCP tools through here: POST { name, args } → the tool's answer.
@@ -10,7 +10,7 @@ export const maxDuration = 120
 const ALLOWED: readonly string[] = UI_TOOLS
 
 export async function POST(req: NextRequest) {
-  const a = await agentAccess()
+  const a = await askAccess()
   if (a.error) return a.error
   const { name, args } = await req.json().catch(() => ({})) as { name?: unknown; args?: unknown }
   if (typeof name !== 'string' || !ALLOWED.includes(name)) return NextResponse.json({ error: 'Not a tool Ask can use.' }, { status: 400 })

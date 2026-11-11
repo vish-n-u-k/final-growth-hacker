@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { agentAccess } from '@/lib/agents/access'
+import { askAccess } from '@/lib/agents/access'
 import { askQuestion, questionsLeft } from '@/lib/ask/engine'
 import type { AskEvent } from '@/lib/ask/types'
 
@@ -10,13 +10,13 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 export async function GET() {
-  const a = await agentAccess()
+  const a = await askAccess()
   if (a.error) return a.error
   return NextResponse.json({ left: await questionsLeft(a.brandId) })
 }
 
 export async function POST(req: NextRequest) {
-  const a = await agentAccess()
+  const a = await askAccess()
   if (a.error) return a.error
   const body = await req.json().catch(() => ({})) as { question?: unknown; clarify?: { asked?: unknown; chosen?: unknown } }
   const question = typeof body.question === 'string' ? body.question : ''

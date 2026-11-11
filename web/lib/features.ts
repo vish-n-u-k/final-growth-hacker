@@ -8,9 +8,9 @@ export function isComingSoon(href: string, earlyAccess = false): boolean {
   return COMING_SOON_ROUTES.some(r => href === r || href.startsWith(r + '/'))
 }
 
-// Ask (/ask, md_files/ASK_PLAN.md phase 5) is the home page for early-access users: Today and Growth
-// Path are hidden from the sidebar, their pages send people to /ask, and logging in lands there.
-// Nothing is deleted: set NEXT_PUBLIC_ASK_HOME=off to bring Today and Growth Path back for everyone.
+// Ask (/ask) can be the home page for early-access users: Today and Growth Path hidden from the
+// sidebar, their pages sending people to /ask, logging in landing there. Off for now (11 Nov: the app
+// works as before and Ask is opened from its sidebar item or by typing /ask); NEXT_PUBLIC_ASK_HOME=on brings it back.
 export function askIsHome(earlyAccess: boolean): boolean {
-  return earlyAccess && process.env.NEXT_PUBLIC_ASK_HOME !== 'off'
+  return earlyAccess && process.env.NEXT_PUBLIC_ASK_HOME === 'on'
 }

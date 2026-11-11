@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { agentAccess } from '@/lib/agents/access'
+import { askAccess } from '@/lib/agents/access'
 import { withDemo } from '@/lib/agents/demo'
 import { readDemoSwitch } from '@/lib/agents/store'
 import { markAsked, readAsks } from '@/lib/ask/indexing'
@@ -10,14 +10,14 @@ import { markAsked, readAsks } from '@/lib/ask/indexing'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  const a = await agentAccess()
+  const a = await askAccess()
   if (a.error) return a.error
   const asks = await withDemo(await readDemoSwitch(a.brandId), () => readAsks(a.brandId))
   return NextResponse.json({ asks })
 }
 
 export async function POST(req: NextRequest) {
-  const a = await agentAccess()
+  const a = await askAccess()
   if (a.error) return a.error
   const { url, asked } = await req.json().catch(() => ({})) as { url?: unknown; asked?: unknown }
   if (typeof url !== 'string' || !/^https?:\/\//.test(url)) return NextResponse.json({ error: 'Missing url' }, { status: 400 })

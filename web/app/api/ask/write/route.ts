@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { agentAccess } from '@/lib/agents/access'
+import { askAccess } from '@/lib/agents/access'
 import { withDemo } from '@/lib/agents/demo'
 import { readDemoSwitch } from '@/lib/agents/store'
 import { withAIContext } from '@/lib/ai/client'
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 180
 
 export async function POST(req: NextRequest) {
-  const a = await agentAccess()
+  const a = await askAccess()
   if (a.error) return a.error
   const body = await req.json().catch(() => ({})) as { lead_id?: unknown; thread_id?: unknown; list_about?: unknown; topic?: unknown }
   const run = async () => {

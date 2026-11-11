@@ -73,12 +73,13 @@ function jobOf(t: string): Panel | null {
   return null
 }
 
-export default function AskPage({ brandName, site, initial, stale, initialOpen }: {
+export default function AskPage({ brandName, site, initial, stale, initialOpen, backHref }: {
   brandName: string
   site: string
   initial: AskCards | null
   stale: boolean
   initialOpen: CardId | null
+  backHref?: string | null   // the rest of the app, when Ask isn't the home page
 }) {
   const [data, setData] = useState<AskCards | null>(initial)
   const [busy, setBusy] = useState(stale)
@@ -266,7 +267,9 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
         </button>
         <span className="ask-who">
           <span className="ask-pill">{site}</span>
-          <Link href="/settings" className="ask-out">Settings</Link>
+          {backHref
+            ? <Link href={backHref} className="ask-out">Back to the app →</Link>
+            : <Link href="/settings" className="ask-out">Settings</Link>}
         </span>
       </header>
 

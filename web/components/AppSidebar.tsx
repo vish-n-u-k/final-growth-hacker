@@ -184,7 +184,7 @@ export default function AppSidebar({
         { label: '', items: [{ href: '/ask', label: 'Ask', icon: 'ask' }] },
         ...allGroups.map(g => ({ ...g, items: g.items.filter(i => i.href !== '/dashboard' && i.href !== '/today') })).filter(g => g.items.length > 0),
       ]
-    : allGroups
+    : [{ label: '', items: [{ href: '/ask', label: 'Ask', icon: 'ask' }] }, ...allGroups]
   const actualPath = usePathname()
   // The link just clicked counts as active straight away, so the menu reacts before the page arrives.
   const [pendingHref, setPendingHref] = useState<string | null>(null)

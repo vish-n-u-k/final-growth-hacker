@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { agentAccess } from '@/lib/agents/access'
+import { askAccess } from '@/lib/agents/access'
 import { readCards, type OnStep } from '@/lib/ask/cards'
 import { refreshPins } from '@/lib/ask/pins'
 import type { FillEvent } from '@/lib/ask/types'
@@ -36,13 +36,13 @@ function answer(req: NextRequest, brandId: string, refresh: boolean) {
 }
 
 export async function GET(req: NextRequest) {
-  const a = await agentAccess()
+  const a = await askAccess()
   if (a.error) return a.error
   return answer(req, a.brandId, false)
 }
 
 export async function POST(req: NextRequest) {
-  const a = await agentAccess()
+  const a = await askAccess()
   if (a.error) return a.error
   return answer(req, a.brandId, true)
 }

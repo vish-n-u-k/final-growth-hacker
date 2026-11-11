@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands } from '@/lib/db/schema'
 import { hasEarlyAccess } from '@/lib/early-access'
+import { askIsHome } from '@/lib/features'
 import { savedCards, STALE_MS } from '@/lib/ask/cards'
 import { pinnedAnswers } from '@/lib/ask/pins'
 import { CARD_IDS, type CardId } from '@/lib/ask/types'
@@ -13,12 +14,13 @@ export const dynamic = 'force-dynamic'
 
 const IDS: readonly string[] = CARD_IDS
 
-// Ask (md_files/ASK_PLAN.md): the ready answers and questions of your own. Early access only, not in the sidebar.
+// Ask (md_files/ASK_PLAN.md): the ready answers, questions of your own and the work itself. Any signed-in user.
 export default async function Ask({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  if (!(await hasEarlyAccess(user.email))) redirect('/dashboard')
+  // Any signed-in user can open Ask (from the sidebar or by typing /ask)
+  const home = askIsHome(await hasEarlyAccess(user.email))
   const [brand] = await db.select({ id: brands.id, name: brands.name, websiteUrl: brands.websiteUrl })
     .from(brands).where(eq(brands.userId, user.id)).limit(1)
   if (!brand) redirect('/onboarding')
@@ -37,6 +39,7 @@ export default async function Ask({ searchParams }: { searchParams: Promise<{ q?
       initial={saved}
       stale={!fresh}
       initialOpen={IDS.includes(q as CardId) ? (q as CardId) : null}
+      backHref={home ? null : '/dashboard'}
     />
   )
 }

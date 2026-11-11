@@ -4,7 +4,7 @@ Last updated 4 Nov 2026. Read this first. It covers what the app is, how the cod
 
 ## 1. What the app is
 
-> **6 Nov:** for early-access users, **Ask (`/ask`) is now the home page** and Today and Growth Path are hidden (section 4g-6). Set `NEXT_PUBLIC_ASK_HOME=off` to bring them back.
+> **11 Nov:** the app works as before (login lands where it did, Today and Growth Path are back). **Ask (`/ask`)** is open to any signed-in user from an "Ask" item at the top of the sidebar or by typing `/ask`; its header links "Back to the app". `NEXT_PUBLIC_ASK_HOME=on` makes Ask the home page for early-access users again (section 4g-6). Ask's APIs use `askAccess()` (signed in + brand + Pro when billing is on), not `agentAccess()`.
 
 **GrowJin** helps a small business grow. A user adds their brand (website, audience, competitors). GrowJin then tells them what to fix and does a lot of the outreach work for them. The test brand we use in demos is **Frekto**, an AI social media post maker.
 
@@ -644,6 +644,14 @@ The owner's call: "forget the old pages exist, everything comes here", and build
   - **Write**: the Search Agent's open topics; a drafted one via `get_blog_post`, "I published it" → `mark_blog_published`; otherwise Claude writes it (not saved: copy it).
 - **Still not through a tool** (no MCP tool changes these yet): Skip a lead, "I posted it", marking a reply answered (Lead Finder's `/api/agents/lead`), closing a follow-up reminder (`/api/reminders/[id]/done`), starting a lead search (`/api/leads/engine`), lead settings, connecting Gmail / Search Console. The header's "Tools →" became "Settings".
 - Checked in the preview harness with the tools and writer faked: every workspace, send, next, follow-up, list send, draft / publish, job phrases, card → workspace, phone. Full build passes. **Not run against real data, Gmail or Claude yet.**
+
+## 4g-11. Ask only by its sidebar item or URL; the app back as before (11 Nov)
+
+The owner's call: keep the app as it was, with Ask reachable on its own.
+- `askIsHome` (`lib/features.ts`) is now off unless `NEXT_PUBLIC_ASK_HOME=on`: `/start` lands where it did, `/today` and `/dashboard` don't redirect, the sidebar shows Today and Growth Path.
+- The sidebar has an **Ask** item first for everyone (`AppSidebar.tsx`).
+- `/ask` (`app/ask/page.tsx`) no longer checks early access; `/api/ask/*` use the new `askAccess()` in `lib/agents/access.ts` (signed in, a brand, Pro when billing is on). The Ask header shows "Back to the app →" (`/dashboard`) when Ask isn't home, else "Settings".
+- Not changed: Lead Finder, the Lead Engine, Lead Finder's skip / posted ops and reminders keep their own rules (`agentAccess`, early access), so for users without early access the Leads workspace stays empty and "Find new leads" says AI Agents are coming soon. `/api/cron/ask` still fills cards each morning only for early-access brands; others get them when they open Ask.
 
 ## 4g. Foundation: Google Business Profile check (4 Nov)
 

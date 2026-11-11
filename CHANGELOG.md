@@ -3,7 +3,7 @@
 ## 11 Nov 2026
 
 ### New
-- **Ask is your home page (early access).** One box: ask anything about your business, or say what you want done ("find me leads", "email my list", "write a post"). Ready answers wait for you each morning: who replied, who to email, why you're not on Google, your Google and AI visibility score, what to write, where to join conversations, the search words you can win, and whether you're on track.
+- **Ask (new, in the sidebar).** One box: ask anything about your business, or say what you want done ("find me leads", "email my list", "write a post"). Ready answers wait for you each morning: who replied, who to email, why you're not on Google, your Google and AI visibility score, what to write, where to join conversations, the search words you can win, and whether you're on track.
 - **Do the work without leaving Ask.** Leads, Email and Write open right there: review and send a lead's email, find new leads, answer replies and send follow-ups (written for you), send one email to a pasted list, and check or write blog posts.
 - **Why each page isn't on Google.** The Google answer now says what Google itself thinks of every missing page (not found yet, left out, blocked, or just new) and whether your site is simply new. Open a page in Search Console, ask Google to index it, press Done, and GrowJin tells you when it's in.
 - **Claude can see your leads and replies.** With GrowJin connected, Claude can list the leads on your board and who replied to your emails, read a thread and answer in it.
