@@ -5,8 +5,7 @@ import type { Review, ReviewEvent, ReviewState } from '@/lib/ask/review'
 import { Top, copy } from './AskPanel'
 
 // "Re-analyse website" (lib/ask/review.ts): Claude reads the site like a first-time visitor and writes
-// a review with fixes. Admins also see the switch for how runs go: through the Claude API straight
-// away, or into the admin queue (the same switch as the admin page's "Module runs").
+// a review with fixes. When Ask AI is switched to the queue (admin page), a click asks the team instead.
 
 type Mode = 'direct' | 'queue'
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -27,7 +26,6 @@ export function ReviewPanel({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('')
   const [said, setSaid] = useState('')
   const [open, setOpen] = useState<number | null>(0)
-  const [modeBusy, setModeBusy] = useState(false)
   const alive = useRef(true)
 
   useEffect(() => {
@@ -41,12 +39,6 @@ export function ReviewPanel({ onClose }: { onClose: () => void }) {
     return () => clearInterval(t)
   }, [running, started])
 
-  async function changeMode(next: Mode) {
-    setModeBusy(true)
-    const j = await fetch('/api/ask/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'mode', mode: next }) }).then(r => r.json()).catch(() => ({}))
-    setModeBusy(false)
-    if (j.mode) setMode(j.mode)
-  }
 
   async function run() {
     setError(''); setSaid(''); setSteps([]); setRunning(true); setStarted(Date.now()); setSecs(0)
@@ -82,22 +74,12 @@ export function ReviewPanel({ onClose }: { onClose: () => void }) {
   }
 
   const r = state?.review
-  const switchRow = admin && (
-    <div className="ask-rv-mode">
-      <span><b>Runs:</b> {mode === 'direct' ? 'straight away through the Claude API' : 'queued for the admin to run'}</span>
-      <button type="button" className="ask-tl" disabled={modeBusy} onClick={() => changeMode(mode === 'direct' ? 'queue' : 'direct')}>
-        {modeBusy ? 'Saving…' : mode === 'direct' ? 'Switch to queue' : 'Switch to API'}
-      </button>
-      <small>Admin only. One switch for all of Ask (questions, lead searches, this review) and the admin page’s module runs. Writing emails always runs straight away, and so does everything you do.</small>
-    </div>
-  )
 
   if (!state) return <div className="ask-sheet-in"><Top label="Website review" onClose={onClose} /><p className="ask-sheet-lede">{error || 'Opening…'}</p></div>
 
   return (
     <div className="ask-sheet-in">
       <Top label="Website review" onClose={onClose} />
-      {switchRow}
 
       {running && (
         <>

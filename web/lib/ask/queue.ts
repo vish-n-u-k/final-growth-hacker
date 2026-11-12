@@ -1,4 +1,4 @@
-// The admin switch (lib/modules/analysis-mode.ts) for the whole of Ask. On 'queue', Ask's Claude work
+// Ask's admin switch (getAskMode in lib/modules/analysis-mode.ts, separate from module runs). On 'queue', Ask's Claude work
 // for anyone but an admin waits for the team instead of running: typed questions (and the lead
 // searches or emails they lead to), Lead Finder's "Find new leads" and "Look again now" in memory.
 // Writing emails and replies always runs straight away. Background work that uses Claude (patterns
@@ -13,7 +13,7 @@ import { db } from '@/lib/db'
 import { analysisRequests } from '@/lib/db/schema'
 import { isAdminEmail } from '@/lib/admin'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
-import { getAnalysisMode, type AnalysisMode } from '@/lib/modules/analysis-mode'
+import { getAskMode, type AnalysisMode } from '@/lib/modules/analysis-mode'
 import { queueAnalysisRequest } from '@/lib/modules/analysis-queue'
 import { withAIContext } from '@/lib/ai/client'
 import { withDemo } from '@/lib/agents/demo'
@@ -29,7 +29,7 @@ const KEEP_DAYS = 30
 
 /** How this person's Ask work runs: admins always straight away; everyone else follows the switch. */
 export async function modeFor(email: string | null | undefined): Promise<AnalysisMode> {
-  return isAdminEmail(email) ? 'direct' : getAnalysisMode()
+  return isAdminEmail(email) ? 'direct' : getAskMode()
 }
 
 export async function readQueue(brandId: string): Promise<QueuedJob[]> {

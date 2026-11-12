@@ -68,15 +68,13 @@ function useElapsed(start: number | null, on: boolean): number {
 
 type View = { kind: 'home' } | { kind: 'card'; id: CardId } | { kind: 'pin'; id: string } | { kind: 'live' }
 
-export default function AskPage({ brandName, site, initial, stale, initialOpen, backHref, admin = false, mode: startMode = 'direct' }: {
+export default function AskPage({ brandName, site, initial, stale, initialOpen, backHref }: {
   brandName: string
   site: string
   initial: AskCards | null
   stale: boolean
   initialOpen: CardId | null
   backHref?: string | null   // the rest of the app, when Ask isn't the home page
-  admin?: boolean            // GrowJin team: sees the API / queue switch, and always runs straight away
-  mode?: 'direct' | 'queue'  // the admin switch (lib/modules/analysis-mode.ts)
 }) {
   const [data, setData] = useState<AskCards | null>(initial)
   const [busy, setBusy] = useState(stale)
@@ -96,21 +94,12 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
   const [left, setLeft] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
   const [panel, setPanel] = useState<Panel | null>(null)
-  // The admin switch, and the work waiting for the team (lib/ask/queue.ts)
-  const [mode, setMode] = useState(startMode)
-  const [modeBusy, setModeBusy] = useState(false)
+  // Work waiting for the team, when Ask AI is switched to the queue on the admin page (lib/ask/queue.ts)
   const [jobs, setJobs] = useState<QueuedJob[]>([])
   const loadJobs = useCallback(() => {
     fetch('/api/ask/queue').then(r => (r.ok ? r.json() : null)).then(j => { if (Array.isArray(j?.jobs)) setJobs(j.jobs) }).catch(() => {})
   }, [])
   useEffect(() => { loadJobs() }, [loadJobs])
-  async function flipMode() {
-    setModeBusy(true)
-    const next = mode === 'direct' ? 'queue' : 'direct'
-    const j = await fetch('/api/ask/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'mode', mode: next }) }).then(r => r.json()).catch(() => ({}))
-    setModeBusy(false)
-    if (j.mode) setMode(j.mode)
-  }
   // /ask?review=1 (the email when a queued website review is done) opens the review
   useEffect(() => { if (new URLSearchParams(window.location.search).get('review')) setPanel({ kind: 'review' }) }, [])
   // A pattern Ask noticed, offered once as a rule (lib/ask/memory.ts)
@@ -427,13 +416,6 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
                     <button type="button" className="ask-tl" onClick={() => answerOffer(true)}>Yes</button>
                     <button type="button" className="ask-tl" onClick={() => answerOffer(false)}>No</button>
                   </span>
-                </div>
-              )}
-              {admin && (
-                <div className="ask-adm">
-                  <span>Admin · Ask runs <b>{mode === 'direct' ? 'straight away through the Claude API' : 'in the queue for the team'}</b></span>
-                  <button type="button" className="ask-tl" disabled={modeBusy} onClick={flipMode}>{modeBusy ? 'Saving…' : mode === 'direct' ? 'Switch to queue' : 'Switch to API'}</button>
-                  <small>One switch for all of Ask and the module runs. Writing emails, and anything you do, always runs straight away.</small>
                 </div>
               )}
             </section>

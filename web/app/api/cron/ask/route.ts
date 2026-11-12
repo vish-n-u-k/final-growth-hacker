@@ -4,7 +4,7 @@ import { brands } from '@/lib/db/schema'
 import { getEarlyAccessEmails } from '@/lib/early-access'
 import { fillCards } from '@/lib/ask/cards'
 import { refreshPins } from '@/lib/ask/pins'
-import { getAnalysisMode } from '@/lib/modules/analysis-mode'
+import { getAskMode } from '@/lib/modules/analysis-mode'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
   }
 
   const rows = (await db.select({ id: brands.id, userId: brands.userId }).from(brands)).filter(b => ids.has(b.userId))
-  const paused = await getAnalysisMode() === 'queue'
+  const paused = await getAskMode() === 'queue'
   const results: { brandId: string; error?: string }[] = []
   for (const b of rows) {
     if (Date.now() - started > TIME_BUDGET) break

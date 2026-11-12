@@ -37,6 +37,7 @@ interface Props {
   gmailAddress: string | null
   gmailParam?: string
   analysisMode: AnalysisMode
+  askMode: AnalysisMode
   earlyAccess: string[]
 }
 
@@ -56,7 +57,7 @@ interface SendResult {
   skipped?: string
 }
 
-export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam, analysisMode, earlyAccess: initialEarlyAccess }: Props) {
+export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam, analysisMode, askMode: initialAskMode, earlyAccess: initialEarlyAccess }: Props) {
   const [mode, setMode] = useState<AnalysisMode>(analysisMode)
   const [modeSaving, setModeSaving] = useState(false)
   const [modeError, setModeError] = useState<string | null>(null)
@@ -72,6 +73,24 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
       setModeError(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setModeSaving(false)
+    }
+  }
+  // Ask's own switch: its AI work through the API, or queued here for you to run
+  const [askMode, setAskMode] = useState<AnalysisMode>(initialAskMode)
+  const [askSaving, setAskSaving] = useState(false)
+  const [askError, setAskError] = useState<string | null>(null)
+  const changeAskMode = async (next: AnalysisMode) => {
+    setAskSaving(true)
+    setAskError(null)
+    try {
+      const res = await fetch('/api/admin/analysis-mode', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: next, target: 'ask' }) })
+      const data = await res.json().catch(() => ({})) as { mode?: AnalysisMode; error?: string }
+      if (!res.ok || !data.mode) throw new Error(data.error ?? `Save failed (${res.status})`)
+      setAskMode(data.mode)
+    } catch (e) {
+      setAskError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setAskSaving(false)
     }
   }
   const [tab, setTab] = useState<'queue' | 'users' | 'notes' | 'costs' | 'access'>('queue')
@@ -247,7 +266,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
 
       {tab === 'queue' && (
         <>
-          {/* How Growth Path modules and Ask's Claude work run (one switch, lib/ask/queue.ts) */}
+          {/* How Growth Path modules run when a user clicks Run */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -260,7 +279,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
             marginBottom: 12,
             fontSize: 13,
           }}>
-            <span style={{ color: 'var(--text-dim, #8aa897)' }}>Module runs and Ask:</span>
+            <span style={{ color: 'var(--text-dim, #8aa897)' }}>Module runs:</span>
             <span style={{ fontWeight: 600 }}>
               {mode === 'direct' ? 'Run straight away through the API' : 'Queued here for you to run'}
             </span>
@@ -273,6 +292,24 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
               {modeSaving ? 'Saving…' : mode === 'direct' ? 'Switch to queue' : 'Switch to API'}
             </button>
             {modeError && <span style={{ flexBasis: '100%', color: '#f87171', fontSize: 12 }}>{modeError}</span>}
+          </div>
+
+          {/* How Ask's AI work runs (questions, lead searches, website reviews): lib/ask/queue.ts */}
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '12px 16px', borderRadius: 8, background: 'var(--card, #122620)', border: '1px solid var(--line, #1e3830)', marginBottom: 12, fontSize: 13 }}>
+            <span style={{ color: 'var(--text-dim, #8aa897)' }}>Ask AI:</span>
+            <span style={{ fontWeight: 600 }}>
+              {askMode === 'direct' ? 'Run straight away through the API' : 'Queued here for you to run'}
+            </span>
+            <button
+              type="button"
+              disabled={askSaving}
+              onClick={() => changeAskMode(askMode === 'direct' ? 'queue' : 'direct')}
+              style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--line, #1e3830)', borderRadius: 6, color: 'inherit', fontFamily: 'inherit', fontSize: 12, padding: '5px 12px', cursor: 'pointer' }}
+            >
+              {askSaving ? 'Saving…' : askMode === 'direct' ? 'Switch to queue' : 'Switch to API'}
+            </button>
+            <span style={{ flexBasis: '100%', color: 'var(--text-dim, #8aa897)', fontSize: 12 }}>Questions, lead searches and website reviews in Ask. Writing emails always runs straight away.</span>
+            {askError && <span style={{ flexBasis: '100%', color: '#f87171', fontSize: 12 }}>{askError}</span>}
           </div>
 
           {/* Gmail connection status */}

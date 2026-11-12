@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { askAccess } from '@/lib/agents/access'
 import { isAdminEmail } from '@/lib/admin'
-import { getAnalysisMode, setAnalysisMode } from '@/lib/modules/analysis-mode'
+import { getAskMode } from '@/lib/modules/analysis-mode'
 import { queueAnalysisRequest } from '@/lib/modules/analysis-queue'
 import { markRequested, readReview, runReview, type ReviewEvent } from '@/lib/ask/review'
 import { REVIEW_REQUEST_NAME } from '@/lib/ask/types'
@@ -11,7 +11,6 @@ import { REVIEW_REQUEST_NAME } from '@/lib/ask/types'
 //   GET                              → { state, mode, admin }
 //   POST { op: 'run' }               → streams ReviewEvent lines, or { queued } when runs go to the admin queue
 //   POST { op: 'run', brandId }      → admin running a queued request for that brand (plain JSON)
-//   POST { op: 'mode', mode }        → admin: 'direct' (Claude API) or 'queue' (same switch as /admin)
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
@@ -24,20 +23,14 @@ async function who() {
 export async function GET() {
   const a = await askAccess()
   if (a.error) return a.error
-  const [state, mode, u] = await Promise.all([readReview(a.brandId), getAnalysisMode(), who()])
+  const [state, mode, u] = await Promise.all([readReview(a.brandId), getAskMode(), who()])
   return NextResponse.json({ state, mode, admin: u.admin })
 }
 
 export async function POST(req: NextRequest) {
-  const b = await req.json().catch(() => ({})) as { op?: string; mode?: string; brandId?: string }
+  const b = await req.json().catch(() => ({})) as { op?: string; brandId?: string }
   const u = await who()
 
-  if (b.op === 'mode') {
-    if (!u.admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    if (b.mode !== 'direct' && b.mode !== 'queue') return NextResponse.json({ error: 'mode must be "direct" or "queue"' }, { status: 400 })
-    await setAnalysisMode(b.mode)
-    return NextResponse.json({ mode: b.mode })
-  }
   if (b.op !== 'run') return NextResponse.json({ error: 'Unknown op' }, { status: 400 })
 
   // The admin queue's Run button: any brand, answered once it's done
@@ -50,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   const a = await askAccess()
   if (a.error) return a.error
-  if (!u.admin && await getAnalysisMode() === 'queue') {
+  if (!u.admin && await getAskMode() === 'queue') {
     const s = await readReview(a.brandId)
     if (!s.requestedAt) await queueAnalysisRequest({ userId: u.id, userEmail: u.email, moduleId: a.brandId, moduleName: REVIEW_REQUEST_NAME })
     const at = s.requestedAt ?? await markRequested(a.brandId)
