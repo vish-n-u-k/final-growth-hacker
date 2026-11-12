@@ -38,6 +38,7 @@ interface Props {
   gmailParam?: string
   analysisMode: AnalysisMode
   askMode: AnalysisMode
+  viaClaudeCode: boolean   // this copy of the app runs AI through the Claude Code CLI (USE_CLAUDE_CLI=true)
   earlyAccess: string[]
 }
 
@@ -57,7 +58,7 @@ interface SendResult {
   skipped?: string
 }
 
-export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam, analysisMode, askMode: initialAskMode, earlyAccess: initialEarlyAccess }: Props) {
+export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam, analysisMode, askMode: initialAskMode, viaClaudeCode, earlyAccess: initialEarlyAccess }: Props) {
   const [mode, setMode] = useState<AnalysisMode>(analysisMode)
   const [modeSaving, setModeSaving] = useState(false)
   const [modeError, setModeError] = useState<string | null>(null)
@@ -309,6 +310,11 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
               {askSaving ? 'Saving…' : askMode === 'direct' ? 'Switch to queue' : 'Switch to API'}
             </button>
             <span style={{ flexBasis: '100%', color: 'var(--text-dim, #8aa897)', fontSize: 12 }}>Questions, lead searches and website reviews in Ask. Writing emails always runs straight away.</span>
+            <span style={{ flexBasis: '100%', fontSize: 12, color: viaClaudeCode ? 'var(--green, #2fbf71)' : 'var(--text-dim, #8aa897)' }}>
+              {viaClaudeCode
+                ? 'Run Analysis here uses Claude Code on this computer (your plan, not API credit).'
+                : 'Run Analysis here uses the API. To use Claude Code, run the app on your computer with USE_CLAUDE_CLI=true and press Run there.'}
+            </span>
             {askError && <span style={{ flexBasis: '100%', color: '#f87171', fontSize: 12 }}>{askError}</span>}
           </div>
 

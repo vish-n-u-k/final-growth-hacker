@@ -14,6 +14,7 @@ import { brandIntegrations } from '@/lib/db/schema'
 import { TOOLS } from '@/lib/mcp/tool-registry'
 import { dispatch } from '@/lib/mcp/dispatch'
 import { anthropicCostUsd } from '@/lib/ai/pricing'
+import { createMessage, viaClaudeCode } from '@/lib/ai/claude-code'
 import { logAnthropicUsage, withAIContext } from '@/lib/ai/client'
 import { loadBrandContext } from '@/lib/agents/context'
 import { readDemoSwitch } from '@/lib/agents/store'
@@ -28,7 +29,8 @@ import { CARD_IDS, type Answer, type AskEvent, type CardId, type NextStep, type 
 const MODEL = 'claude-sonnet-5-5'
 export const DAILY_LIMIT = Number(process.env.ASK_DAILY_LIMIT) || 20
 const MAX_TURNS = 8
-const MAX_MS = 60_000                 // then it's told to answer with what it has
+// Then it's told to answer with what it has. Claude Code (USE_CLAUDE_CLI) is slower per turn: 4× the time
+const MAX_MS = viaClaudeCode() ? 240_000 : 60_000
 const AI_CAP_USD = 0.25
 const TOOL_CAP_USD = 0.10             // DataForSEO, per question
 const RESULT_CHARS = 8000
@@ -455,7 +457,7 @@ export async function askQuestion(brandId: string, input: AskInput, emit: (e: As
 
     const out = await answerLoop({
       question, intro, clarified: !!input.clarify, emit, brandId, known: h?.known,
-      create: p => new Anthropic().messages.create(p),
+      create: createMessage,   // the API, or Claude Code when the app runs with USE_CLAUDE_CLI=true
       runTool: (name, inp) => runTool(brandId, name, inp),
       refund: async () => { emit({ t: 'left', left: await addQuestion(brandId, -1) }) },
     })

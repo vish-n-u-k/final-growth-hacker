@@ -4,7 +4,7 @@
 // answer from the fresh data, so the card shows today's number. Refreshes don't count toward the
 // daily limit of typed questions.
 
-import Anthropic from '@anthropic-ai/sdk'
+import { createMessage } from '@/lib/ai/claude-code'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { agentsDemo, withDemo } from '@/lib/agents/demo'
 import { readDemoSwitch } from '@/lib/agents/store'
@@ -92,7 +92,7 @@ export async function refreshPins(brandId: string, opts: { force?: boolean; onSt
             data || '(The lookups returned nothing this time.)',
           ].join('\n'),
           emit: () => {}, refund: async () => {},
-          create: q => new Anthropic().messages.create(q),
+          create: createMessage,
           runTool: async () => ({ result: { note: 'Use the data already given.' }, usd: 0 }),
         })
         if (out) { p.answer = { ...out.answer, id: `pin:${p.id}`, question: p.question }; p.at = new Date().toISOString(); delete p.error }

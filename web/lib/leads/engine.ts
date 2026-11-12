@@ -8,6 +8,7 @@
 // capped in code: when a cap is reached, Claude is told to stop and answer with what it has.
 
 import Anthropic from '@anthropic-ai/sdk'
+import { claudeCodeCreate, viaClaudeCode } from '@/lib/ai/claude-code'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { TOOLS } from '@/lib/mcp/tool-registry'
 import { dataforseo } from '@/lib/mcp/tools/dataforseo'
@@ -292,7 +293,8 @@ export async function advanceEngine(brandId: string, stepMs = STEP_MS): Promise<
           else messages.push({ role: 'user', content: note })
         }
 
-        const res = await client.messages.create({
+        // The API, or Claude Code when the app runs with USE_CLAUDE_CLI=true (the admin queue's Run, on your computer)
+        const res = await (viaClaudeCode() ? claudeCodeCreate : (p: Anthropic.MessageCreateParamsNonStreaming) => client.messages.create(p))({
           model: MODEL,
           max_tokens: 16000,
           system: [{ type: 'text', text: ENGINE_PROMPT, cache_control: { type: 'ephemeral' } }],

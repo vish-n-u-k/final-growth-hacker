@@ -12,6 +12,7 @@ import * as cheerio from 'cheerio'
 import { TOOLS } from '@/lib/mcp/tool-registry'
 import { dispatch } from '@/lib/mcp/dispatch'
 import { anthropicCostUsd } from '@/lib/ai/pricing'
+import { createMessage, viaClaudeCode } from '@/lib/ai/claude-code'
 import { logAnthropicUsage, withAIContext } from '@/lib/ai/client'
 import { loadBrandContext } from '@/lib/agents/context'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
@@ -20,7 +21,7 @@ import { memoryBlock } from './memory'
 const MODEL = 'claude-opus-5-5'
 const KEY = 'ask:review'
 const MAX_TURNS = 14
-const MAX_MS = 240_000
+const MAX_MS = viaClaudeCode() ? 900_000 : 240_000   // Claude Code is slower per turn
 const AI_CAP_USD = 1.5
 const TOOL_CAP_USD = 0.15     // DataForSEO
 const MAX_PAGES = 15
@@ -218,7 +219,7 @@ function toReview(f: Form, pages: string[], started: number, usd: number): Revie
 }
 
 /** Runs the review and saves it. Calls `emit` with progress. */
-export async function runReview(brandId: string, emit: (e: ReviewEvent) => void, create: (p: Anthropic.MessageCreateParamsNonStreaming) => Promise<Anthropic.Message> = p => new Anthropic().messages.create(p)): Promise<Review | null> {
+export async function runReview(brandId: string, emit: (e: ReviewEvent) => void, create: (p: Anthropic.MessageCreateParamsNonStreaming) => Promise<Anthropic.Message> = createMessage): Promise<Review | null> {
   return withAIContext({ brandId, moduleType: 'ask-review' }, async () => {
     const started = Date.now()
     const [b, mem] = await Promise.all([loadBrandContext(brandId), memoryBlock(brandId).catch(() => ({ text: '' }))])

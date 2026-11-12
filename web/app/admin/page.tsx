@@ -26,5 +26,5 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     getEarlyAccessEmails().catch(() => [] as string[]),
   ])
 
-  return <AdminDashboard requests={requests} gmailAddress={gmailAddress} gmailParam={gmailParam} analysisMode={analysisMode} askMode={askMode} earlyAccess={earlyAccess} />
+  return <AdminDashboard requests={requests} gmailAddress={gmailAddress} gmailParam={gmailParam} analysisMode={analysisMode} askMode={askMode} viaClaudeCode={process.env.USE_CLAUDE_CLI === 'true'} earlyAccess={earlyAccess} />
 }
