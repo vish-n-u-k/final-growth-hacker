@@ -1143,6 +1143,15 @@ const MCP_TOOLS = [
   { name: 'get_pending_items', desc: 'All incomplete items sorted by priority — optionally scoped to a module' },
   { name: 'get_blog_post', desc: 'A blog post written in GrowJin, ready to add to your website' },
   { name: 'mark_blog_published', desc: 'Mark a blog post as live on your website' },
+  { name: 'ga4', desc: 'Ask your Google Analytics anything: any report, period or filter' },
+  { name: 'gsc', desc: 'Ask your Search Console anything: searches and pages, a page\'s index status, sitemaps' },
+  { name: 'get_lead_settings', desc: 'Who Lead Finder looks for: your brief, ideal customer and sending settings' },
+  { name: 'check_contacts', desc: 'Whether people or companies were already emailed, are already leads, or opted out' },
+  { name: 'save_leads', desc: 'Add leads Claude found to Lead Finder, ready for you to approve' },
+  { name: 'list_leads', desc: 'The leads on your Lead Finder board, with why they fit and what was written for them' },
+  { name: 'list_replies', desc: 'Who replied to emails GrowJin sent, and follow-ups that are due' },
+  { name: 'gmail_status', desc: 'Whether Gmail is connected and Claude may send from it' },
+  { name: 'send_email', desc: 'Send an email from your Gmail (only when you allow it below)' },
 ]
 
 const MCP_URL = 'https://app.growjin.com/api/mcp'
@@ -1305,6 +1314,8 @@ function ClaudeCodeSection({ initialKeyPrefix }: { initialKeyPrefix: string | nu
           )}
         </div>
 
+        <ClaudeSendEmail />
+
         {/* ── Available tools ── */}
         <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}>
           <button
@@ -1328,6 +1339,72 @@ function ClaudeCodeSection({ initialKeyPrefix }: { initialKeyPrefix: string | nu
           )}
         </div>
 
+      </div>
+    </div>
+  )
+}
+
+// "Let Claude send email": the MCP send_email tool sends nothing until this is on
+function ClaudeSendEmail() {
+  const [state, setState] = useState<{ on: boolean; dailyLimit: number; sentToday: number; connected: boolean; canSend: boolean; address: string | null } | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/mcp/gmail-send').then(r => (r.ok ? r.json() : null)).then(setState).catch(() => {})
+  }, [])
+
+  const save = async (change: { on?: boolean; dailyLimit?: number }) => {
+    if (!state) return
+    setSaving(true)
+    setState({ ...state, ...change })
+    try {
+      const res = await fetch('/api/mcp/gmail-send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change) })
+      if (res.ok) { const p = await res.json(); setState(s => (s ? { ...s, ...p } : s)) }
+    } finally { setSaving(false) }
+  }
+
+  const dim: React.CSSProperties = { fontSize: 12, color: 'var(--text-dim)', margin: 0, lineHeight: 1.6 }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Email from Claude</div>
+      <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {!state ? (
+          <p style={dim}>Checking your Gmail…</p>
+        ) : !state.connected || !state.canSend ? (
+          <p style={dim}>
+            {state.connected ? 'Your Gmail is connected without permission to send.' : 'Gmail isn’t connected.'}{' '}
+            <a href="/gmail-hub" style={{ color: 'var(--text)' }}>{state.connected ? 'Reconnect it' : 'Connect it'} in Email Outreach</a> to let Claude send email for you.
+          </p>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--text)' }}>Let Claude send email from {state.address ?? 'your Gmail'}</div>
+                <p style={dim}>Claude shows you each email first. Opted-out and bounced addresses are never emailed.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={state.on}
+                aria-label="Let Claude send email"
+                disabled={saving}
+                onClick={() => save({ on: !state.on })}
+                style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', flexShrink: 0, background: state.on ? 'var(--green)' : 'var(--line)', position: 'relative', transition: 'background 0.2s' }}
+              >
+                <span style={{ position: 'absolute', top: 3, left: state.on ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+              </button>
+            </div>
+            {state.on && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={dim}>At most</span>
+                <select className="st-input" style={{ width: 'auto', padding: '4px 8px' }} value={state.dailyLimit} disabled={saving} onChange={e => save({ dailyLimit: Number(e.target.value) })}>
+                  {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <span style={dim}>a day · {state.sentToday} sent today</span>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   )

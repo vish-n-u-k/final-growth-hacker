@@ -6,7 +6,7 @@ import { brands, modules, moduleCategories, moduleItems, modulePageAudit, brandI
 import { claimRun, finishRun, getRun, getRunStage, setRunStage, isStale, failStaleRun, STALE_RUN_ERROR } from '@/lib/modules/runs'
 import { getAccess, canUseModule } from '@/lib/billing/plan'
 import { getCompetitorUrlsString, storeCompetitors } from '@/lib/modules/competitor-registry'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
 import { fetchFoundationData, getFaviconColor } from '@/lib/modules/foundation/fetcher'
 import { analyzeFoundation } from '@/lib/modules/foundation/agent'
@@ -49,7 +49,7 @@ import { getAnalysisMode } from '@/lib/modules/analysis-mode'
 import { queueAnalysisRequest } from '@/lib/modules/analysis-queue'
 import { generatePlaybook, type PlaybookData } from '@/lib/playbook/generator'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition, ModuleItemDefinition, ModuleDefinition } from '@/lib/modules/types'
-import { getAllItems } from '@/lib/modules/types'
+import { getAllItems, defForBrand, itemFits } from '@/lib/modules/types'
 
 // Derive export type from static item definition (saves adding to every definition file)
 function deriveExportType(item: ModuleItemDefinition): 'auto' | 'needs_choice' | 'external' | null {
@@ -102,7 +102,9 @@ async function runAnalysis(
     case 'foundation': {
       const data = await fetchFoundationData(requirements)
       if (!data.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
-      const { results } = await analyzeFoundation(data, await getGscMeta(requirements['brand_id']))
+      const { results } = await analyzeFoundation(data, await getGscMeta(requirements['brand_id']), {
+        id: requirements['brand_id'], name: requirements['brand_name'], websiteType: requirements['website_type'],
+      })
       return results
     }
     case 'website': {
@@ -595,7 +597,7 @@ Key One-Liners: ${pb.keyOneLiners}`
         async () => {
           const gscMeta = await getGscMeta(brand.id)
           return Promise.all([
-            analyzeFoundation(prefetch, gscMeta),
+            analyzeFoundation(prefetch, gscMeta, { id: brand.id, name: brand.name, websiteType: brand.websiteType }),
             generatePlaybook(prefetch, brand.name).catch(() => null),
           ])
         },
@@ -849,6 +851,8 @@ Key One-Liners: ${pb.keyOneLiners}`
     // ── Static module: items pre-seeded, update findings by slug ──────────
     const staticResults = results as ModuleAnalysisResult[]
     const defItemMap = new Map(getAllItems(def).map((i) => [i.slug, i]))
+    // The checks this brand gets (some only apply to some website types, e.g. Google Business Profile)
+    const brandDef = defForBrand(def, brand.websiteType)
 
     // Handle migration: if expected slugs are missing (e.g. module was previously dynamic),
     // wipe stale items/categories and re-seed the structure from the current definition
@@ -860,7 +864,7 @@ Key One-Liners: ${pb.keyOneLiners}`
         await db.delete(moduleItems).where(eq(moduleItems.moduleId, moduleId))
         await db.delete(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
         // Re-seed categories and items from definition
-        for (const cat of def.categories as ModuleCategoryDefinition[]) {
+        for (const cat of brandDef.categories as ModuleCategoryDefinition[]) {
           // eslint-disable-next-line no-await-in-loop
           const [parentCat] = await db.insert(moduleCategories)
             .values({ moduleId, parentId: null, slug: cat.slug, label: cat.label, order: cat.order })
@@ -882,13 +886,21 @@ Key One-Liners: ${pb.keyOneLiners}`
     // Seed any items added to the definition after the module was already created
     // (e.g. lb-* link-building items added to an existing SEO module)
     const existingSlugsSet = new Set(existingForModule.map((i) => i.slug))
-    const newDefItems = getAllItems(def).filter((item) => !existingSlugsSet.has(item.slug))
+    // Checks that no longer apply to this brand (its website type changed) are removed
+    const dropped = [...existingSlugsSet].filter((slug) => {
+      const item = defItemMap.get(slug)
+      return item && !itemFits(item, brand.websiteType)
+    })
+    if (dropped.length > 0) {
+      await db.delete(moduleItems).where(and(eq(moduleItems.moduleId, moduleId), inArray(moduleItems.slug, dropped)))
+    }
+    const newDefItems = getAllItems(brandDef).filter((item) => !existingSlugsSet.has(item.slug))
     if (newDefItems.length > 0) {
       const allCats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
       const parentCatMap = new Map(allCats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
       const subCatMap = new Map(allCats.filter((c) => c.parentId).map((c) => [c.slug, c.id]))
 
-      for (const cat of def.categories as ModuleCategoryDefinition[]) {
+      for (const cat of brandDef.categories as ModuleCategoryDefinition[]) {
         // Ensure parent category exists
         if (!parentCatMap.has(cat.slug)) {
           // eslint-disable-next-line no-await-in-loop

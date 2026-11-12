@@ -25,14 +25,21 @@ export const COUNTRY_NAMES: Record<string, string> = {
   DE: 'Germany', FR: 'France', AE: 'United Arab Emirates', SG: 'Singapore',
 }
 const locationOf = (country: string) => LOCATION_CODES[country] ?? LOCATION_CODES.US
+// The language people search in there. Search data (keyword ideas, rankings, AI Overviews) asks in
+// it; the Lead Agent's Google searches stay English, as its queries are written in English.
+const LANGUAGE_CODES: Record<string, string> = { DE: 'de', FR: 'fr' }
+export const languageOf = (country: string) => LANGUAGE_CODES[country] ?? 'en'
 
 // The name each API gets in Settings → Usage
 function apiLabel(path: string): string {
   if (path.includes('/serp/google/maps/')) return 'Google Maps businesses'
+  if (path.includes('/business_listings/')) return 'Google Business Profiles'
   if (path.includes('/serp/google/organic/')) return 'Google results'
   if (path.includes('/ranked_keywords/')) return 'Site rankings'
   if (path.includes('/competitors_domain/')) return 'Similar sites'
   if (path.includes('/bulk_traffic_estimation/')) return 'Site size (visits)'
+  if (path.includes('/keyword_overview/')) return 'Keyword volumes'
+  if (path.includes('/keyword_suggestions/')) return 'Easier keywords'
   if (path.includes('/dataforseo_labs/')) return 'Keyword ideas'
   if (path.includes('/backlinks/')) return 'Backlinks'
   if (path.includes('/trustpilot/')) return 'Trustpilot reviews'
@@ -72,15 +79,33 @@ async function post<T>(path: string, task: Record<string, unknown>, meter?: Usag
   }
 }
 
-async function postOnce<T>(path: string, task: Record<string, unknown>, meter?: UsageMeter, timeoutMs = 60_000): Promise<T> {
-  if (!dataForSeoConfigured()) throw new Error('DataForSEO is not set up (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD).')
+function send(path: string, tasks: unknown[], timeoutMs: number) {
   const auth = Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString('base64')
-  const res = await fetch(`${BASE}${path}`, {
+  return fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify([task]),
+    body: JSON.stringify(tasks),
     signal: AbortSignal.timeout(timeoutMs),
   })
+}
+
+/**
+ * Any endpoint, raw: posts the tasks and returns DataForSEO's whole answer, errors included
+ * (the MCP `dataforseo` tool). Adds each task's cost to the meter.
+ */
+export async function dfsRaw(path: string, tasks: Record<string, unknown>[], meter?: UsageMeter): Promise<{ status: number; json: unknown }> {
+  if (!dataForSeoConfigured()) throw new Error('DataForSEO is not set up (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD).')
+  const res = await send(path, tasks, 120_000)
+  const text = await res.text()
+  let json: unknown = text
+  try { json = JSON.parse(text) } catch { /* keep the text */ }
+  for (const t of (json as DfsResponse<unknown>)?.tasks ?? []) charge(meter, path, t.cost)
+  return { status: res.status, json }
+}
+
+async function postOnce<T>(path: string, task: Record<string, unknown>, meter?: UsageMeter, timeoutMs = 60_000): Promise<T> {
+  if (!dataForSeoConfigured()) throw new Error('DataForSEO is not set up (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD).')
+  const res = await send(path, [task], timeoutMs)
   if (!res.ok) {
     // Keep DataForSEO's own explanation: a bare "500" can't be acted on
     const body = await res.text().catch(() => '')
@@ -139,7 +164,7 @@ const toIdeas = (items: IdeaItem[]): KeywordIdea[] => items
 export async function keywordIdeas(seeds: string[], country: string, meter?: UsageMeter, limit = 200): Promise<KeywordIdea[]> {
   if (!seeds.length) return []
   if (agentsDemo()) return demoKeywordIdeas(seeds).slice(0, limit)
-  const base = { location_code: locationOf(country), language_code: 'en' }
+  const base = { location_code: locationOf(country), language_code: languageOf(country) }
   let ideas: KeywordIdea[]
   try {
     const r = await post<{ items?: IdeaItem[] | null }>('/dataforseo_labs/google/keyword_ideas/live', {
@@ -161,29 +186,69 @@ export async function keywordIdeas(seeds: string[], country: string, meter?: Usa
   return ideas.sort((x, y) => y.volume - x.volume).slice(0, limit)
 }
 
+/**
+ * Searches a month and difficulty for exact keywords (Labs keyword_overview, one call for all).
+ * A keyword Labs has no data for is left out: too few searches to measure.
+ */
+export async function keywordVolumes(keywords: string[], country: string, meter?: UsageMeter): Promise<Map<string, { volume: number; difficulty: number | null }>> {
+  const out = new Map<string, { volume: number; difficulty: number | null }>()
+  const list = [...new Set(keywords.map(k => k.toLowerCase().trim()).filter(Boolean))]
+  if (!list.length) return out
+  if (agentsDemo()) {
+    list.forEach((k, i) => out.set(k, { volume: [480, 210, 0, 30, 1300, 90, 880, 590, 320, 70][i % 10], difficulty: [24, 12, null, 2, 45, 8, 40, 35, 30, 5][i % 10] }))
+    return out
+  }
+  const r = await post<{ items?: { keyword?: string; keyword_info?: { search_volume?: number | null }; keyword_properties?: { keyword_difficulty?: number | null } }[] | null }>(
+    '/dataforseo_labs/google/keyword_overview/live',
+    { location_code: locationOf(country), language_code: languageOf(country), keywords: list.slice(0, 100) },
+    meter,
+  )
+  for (const i of r.items ?? []) {
+    if (i.keyword) out.set(i.keyword.toLowerCase(), { volume: i.keyword_info?.search_volume ?? 0, difficulty: i.keyword_properties?.keyword_difficulty || null })
+  }
+  return out
+}
+
+/**
+ * Longer, more specific searches that contain this one (Labs keyword_suggestions), with searches a
+ * month and difficulty: where a small site finds a version of a crowded search it can win.
+ */
+export async function keywordSuggestions(keyword: string, country: string, meter?: UsageMeter, limit = 50): Promise<KeywordIdea[]> {
+  if (agentsDemo()) {
+    return demoKeywordIdeas([keyword]).filter(i => i.keyword !== keyword.toLowerCase()).map(i => ({ ...i, difficulty: Math.max(5, (i.difficulty ?? 30) - 25) }))
+  }
+  const r = await post<{ items?: IdeaItem[] | null }>('/dataforseo_labs/google/keyword_suggestions/live', {
+    location_code: locationOf(country), language_code: languageOf(country), keyword: keyword.toLowerCase(), limit,
+  }, meter)
+  return (r.items ?? [])
+    .filter(i => i.keyword && (i.keyword_info?.search_volume ?? 0) >= 10)
+    .map(i => ({ keyword: i.keyword!, volume: i.keyword_info?.search_volume ?? 0, cpc: i.keyword_info?.cpc ?? null, difficulty: i.keyword_properties?.keyword_difficulty || null, intent: i.search_intent_info?.main_intent ?? null }))
+}
+
 // ── Where the site ranks ──────────────────────────────────────────────────────
 
-export interface RankedKeyword { keyword: string; volume: number; rank: number; url: string }
+export interface RankedKeyword { keyword: string; volume: number; rank: number; url: string; impressions?: number; clicks?: number }
 
 export async function rankedKeywords(domain: string, country: string, meter?: UsageMeter, limit = 200): Promise<RankedKeyword[]> {
   if (agentsDemo()) return demoRankedKeywords(domain).slice(0, limit)
   type Item = {
     keyword_data?: { keyword?: string; keyword_info?: { search_volume?: number | null } }
-    ranked_serp_element?: { serp_item?: { rank_absolute?: number; url?: string } }
+    ranked_serp_element?: { serp_item?: { rank_group?: number; rank_absolute?: number; url?: string } }
   }
   const r = await post<{ items?: Item[] | null }>('/dataforseo_labs/google/ranked_keywords/live', {
     target: domain.replace(/^www\./, ''),
     location_code: locationOf(country),
-    language_code: 'en',
+    language_code: languageOf(country),
     limit,
     order_by: ['keyword_data.keyword_info.search_volume,desc'],
   }, meter)
   return (r.items ?? [])
-    .filter(i => i.keyword_data?.keyword && i.ranked_serp_element?.serp_item?.rank_absolute)
+    .filter(i => i.keyword_data?.keyword && (i.ranked_serp_element?.serp_item?.rank_group || i.ranked_serp_element?.serp_item?.rank_absolute))
     .map(i => ({
       keyword: i.keyword_data!.keyword!,
       volume: i.keyword_data?.keyword_info?.search_volume ?? 0,
-      rank: i.ranked_serp_element!.serp_item!.rank_absolute!,
+      // rank_group = place among the normal results; rank_absolute also counts ads, boxes and videos
+      rank: (i.ranked_serp_element!.serp_item!.rank_group || i.ranked_serp_element!.serp_item!.rank_absolute)!,
       url: i.ranked_serp_element?.serp_item?.url ?? '',
     }))
 }
@@ -335,7 +400,7 @@ export async function googleAiOverview(keyword: string, country: string, meter?:
   type El = { text?: string | null; markdown?: string | null; references?: Ref[] | null }
   type Item = { type?: string; markdown?: string | null; items?: El[] | null; references?: Ref[] | null }
   const r = await post<{ items?: Item[] | null }>('/serp/google/organic/live/advanced', {
-    keyword, location_code: locationOf(country), language_code: 'en', depth: 10, load_async_ai_overview: true,
+    keyword, location_code: locationOf(country), language_code: languageOf(country), depth: 10, load_async_ai_overview: true,
   }, meter)
   const o = (r.items ?? []).find(i => i.type === 'ai_overview')
   if (!o) return null
@@ -377,6 +442,44 @@ export async function mapsBusinesses(query: string, country: string, meter?: Usa
       address: i.address ?? null,
       mapsUrl: i.cid ? `https://maps.google.com/?cid=${i.cid}` : (i.check_url ?? null),
     }))
+}
+
+// ── Google Business Profiles (DataForSEO's Business Listings database, built from Google Maps) ──
+
+export interface BusinessListing { title: string; domain: string | null; address: string | null; category: string | null; rating: number | null; reviews: number | null; claimed: boolean | null; mapsUrl: string | null }
+
+/**
+ * Google Business Profiles whose website is this domain, else (with a name) whose name matches.
+ * No location needed: it searches the whole database. About $0.01 a call.
+ */
+export async function businessListings(domain: string, name: string, meter?: UsageMeter): Promise<BusinessListing[]> {
+  type Item = {
+    title?: string; domain?: string | null; address?: string | null; category?: string | null; cid?: string | null
+    check_url?: string | null; is_claimed?: boolean | null
+    rating?: { value?: number | null; votes_count?: number | null } | null
+  }
+  const ask = async (filters: unknown[]) => {
+    try {
+      const r = await post<{ items?: Item[] | null }>('/business_data/business_listings/search/live', { filters, limit: 10 }, meter)
+      return r.items ?? []
+    } catch (e) {
+      if (e instanceof DfsNoResults) return []
+      throw e
+    }
+  }
+  const host = domain.replace(/^www\./, '').toLowerCase()
+  let items = await ask([['domain', 'like', `%${host}%`]])
+  if (items.length === 0 && name.trim().length > 2) items = await ask([['title', 'like', `%${name.trim()}%`]])
+  return items.filter(i => i.title).map(i => ({
+    title: i.title!,
+    domain: i.domain ?? null,
+    address: i.address ?? null,
+    category: i.category ?? null,
+    rating: i.rating?.value ?? null,
+    reviews: i.rating?.votes_count ?? null,
+    claimed: typeof i.is_claimed === 'boolean' ? i.is_claimed : null,
+    mapsUrl: i.cid ? `https://maps.google.com/?cid=${i.cid}` : (i.check_url ?? null),
+  }))
 }
 
 // ── Backlinks (DataForSEO's Backlinks API, a separate subscription) ──────────

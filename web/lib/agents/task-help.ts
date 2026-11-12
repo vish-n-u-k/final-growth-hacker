@@ -81,7 +81,7 @@ Return {"subject":"...","body":"..."}`,
   const found = hunterConfigured() ? await findEmail(dom, undefined, meter).catch(() => null) : null
   await addUsage(brandId, meter, 'Search Agent').catch(() => {})
   const link: LinkOpportunity = {
-    id, domain: dom, source: 'list', url: t.url || `https://${dom}`, title: example || dom,
+    id, domain: dom, source: 'cited', url: t.url || `https://${dom}`, title: example || dom,
     authority: null, names: [], why: `AI answers keep citing ${dom}, in answers that don't mention ${b.name}.`,
     pitch, email: found?.email, emailVerified: found?.verified, contactName: found?.name,
     status: found?.email && pitch ? 'ready' : 'new', foundAt: new Date().toISOString(),

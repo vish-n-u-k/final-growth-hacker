@@ -5,7 +5,7 @@ import { analysisRequests } from '@/lib/db/schema'
 import { desc } from 'drizzle-orm'
 import AdminDashboard from './AdminDashboard'
 import { getAdminGmailAddress } from '@/lib/gmail/admin-token'
-import { getAnalysisMode } from '@/lib/modules/analysis-mode'
+import { getAnalysisMode, getAskMode } from '@/lib/modules/analysis-mode'
 import { getEarlyAccessEmails } from '@/lib/early-access'
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ gmail?: string }> }) {
@@ -17,13 +17,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     redirect('/dashboard')
   }
 
-  const [requests, gmailAddress, analysisMode, { gmail: gmailParam }, earlyAccess] = await Promise.all([
+  const [requests, gmailAddress, analysisMode, askMode, { gmail: gmailParam }, earlyAccess] = await Promise.all([
     db.select().from(analysisRequests).orderBy(desc(analysisRequests.requestedAt)),
     getAdminGmailAddress(),
     getAnalysisMode(),
+    getAskMode(),
     searchParams,
     getEarlyAccessEmails().catch(() => [] as string[]),
   ])
 
-  return <AdminDashboard requests={requests} gmailAddress={gmailAddress} gmailParam={gmailParam} analysisMode={analysisMode} earlyAccess={earlyAccess} />
+  return <AdminDashboard requests={requests} gmailAddress={gmailAddress} gmailParam={gmailParam} analysisMode={analysisMode} askMode={askMode} viaClaudeCode={process.env.USE_CLAUDE_CLI === 'true'} earlyAccess={earlyAccess} />
 }

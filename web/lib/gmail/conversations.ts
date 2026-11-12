@@ -37,6 +37,8 @@ export interface Conversation {
   intent: ReplyIntent | null
   note: string | null          // reply snippet / reason, as saved by the reply check
   followUpDueAt: string | null
+  repliedAt: string | null     // when the reply came (Lead Agent), or when the reply check first saw it
+  reminderId?: string          // the follow-up reminder behind it, when there is one (closing it ends the follow-up)
 }
 
 const LIMIT = 100
@@ -72,7 +74,7 @@ export async function listConversations(brandId: string): Promise<Conversation[]
     byThread.set(e.threadId, {
       threadId: e.threadId, toEmail: e.toEmail, toName: e.toName ?? parseRecipientName(e.toEmail),
       subject: e.subject.replace(/^re:\s*/i, ''), source: EMAIL_SOURCE[e.source ?? ''] ?? 'outreach',
-      sentAt: prev?.sentAt ?? iso(e.sentAt), status: 'sent', intent: null, note: null, followUpDueAt: null,
+      sentAt: prev?.sentAt ?? iso(e.sentAt), status: 'sent', intent: null, note: null, followUpDueAt: null, repliedAt: null,
     })
   }
 
@@ -85,6 +87,7 @@ export async function listConversations(brandId: string): Promise<Conversation[]
       // user marked as answered in the Lead Agent is closed
       status: l.status === 'sent' ? 'waiting' : l.status === 'replied' && l.handledAt ? 'closed' : l.status as ConversationStatus,
       intent: l.replyIntent ?? null, note: l.replyNote ?? null, followUpDueAt: l.nextFollowUpAt ?? null,
+      repliedAt: l.repliedAt ?? null,
     })
   }
 
@@ -95,6 +98,7 @@ export async function listConversations(brandId: string): Promise<Conversation[]
       subject: l.pitch?.subject ?? l.title, source: 'link-agent', sentAt: byThread.get(l.threadId)?.sentAt ?? l.sentAt ?? null,
       status: l.status === 'won' ? 'replied' : l.status === 'sent' ? 'waiting' : l.status as ConversationStatus,
       intent: l.replyIntent ?? null, note: l.replyNote ?? null, followUpDueAt: l.nextFollowUpAt ?? null,
+      repliedAt: null,
     })
   }
 
@@ -120,6 +124,8 @@ export async function listConversations(brandId: string): Promise<Conversation[]
       intent: (r.followupIntent as ReplyIntent | null) ?? null,
       note: r.followupNote,
       followUpDueAt: open ? iso(due) : null,
+      repliedAt: r.followupStatus === 'replied' ? iso(r.followupLastSeenAt ?? r.followupCheckedAt) : prev?.repliedAt ?? null,
+      reminderId: r.id,
     })
   }
 

@@ -67,6 +67,11 @@ export default function GmailHub({
   const [isConnected, setIsConnected]   = useState(initialConnected)
   const [disconnecting, setDisconnecting] = useState(false)
   const [tab, setTab]                   = useState<Tab | null>(null)
+  // ?tab=inbox (from Ask's "Did anyone reply?") opens that tab; otherwise it's picked once follow-ups load
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab')
+    if (t === 'followups' || t === 'inbox' || t === 'campaigns' || t === 'done') setTab(t)
+  }, [])
   const [dueCount, setDueCount]         = useState(0)
   const [sent, setSent]                 = useState<SentEmail[]>([])
   const [reloadKey, setReloadKey]       = useState(0)

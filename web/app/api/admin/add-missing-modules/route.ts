@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { brands, modules, moduleCategories } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { SEEDED_MODULES } from '@/lib/modules/registry'
-import { isDynamicCategory, type ModuleDefinition, type ModuleCategoryDefinition } from '@/lib/modules/types'
+import { isDynamicCategory, defForBrand, type ModuleDefinition, type ModuleCategoryDefinition } from '@/lib/modules/types'
 
 // Helper to seed module structure
 async function seedModuleStructure(moduleId: string, def: ModuleDefinition) {
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
         })
         .returning()
 
-      await seedModuleStructure(newModule.id, def)
+      await seedModuleStructure(newModule.id, defForBrand(def, brand.websiteType))
       addedModules.push({ id: newModule.id, type: def.type, name: def.name })
     }
 

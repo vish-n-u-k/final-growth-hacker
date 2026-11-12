@@ -1,69 +1,34 @@
-import { db } from '@/lib/db'
-import { brandIntegrations } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { NOT_CONNECTED, posthogConn, phQuery, emailExpr, emailNote, clampDays } from './posthog-common'
 
-const NOT_CONNECTED = {
-  connected: false,
-  message: 'PostHog is not connected. Go to Settings → Integrations → PostHog to add your Personal API Key and Project ID.',
-}
+// How far back a churned user may have last been seen. Reading all of history timed out.
+const LOOKBACK_DAYS = 90
 
-async function phQuery(host: string, projectId: string, apiKey: string, query: string) {
-  try {
-    const res = await fetch(`${host}/api/projects/${projectId}/query`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: { kind: 'HogQLQuery', query } }),
-      signal: AbortSignal.timeout(15000),
-    })
-    if (!res.ok) return null
-    return await res.json() as { results?: unknown[][] }
-  } catch { return null }
-}
-
-// Churned users = seen before the inactiveDays window but not since
+// Churned users = seen in the last 90 days, but not in the last inactiveDays
 export async function getPosthogChurnedUsers(brandId: string, inactiveDays = 14, limit = 100) {
-  const [integration] = await db
-    .select()
-    .from(brandIntegrations)
-    .where(and(
-      eq(brandIntegrations.brandId, brandId),
-      eq(brandIntegrations.provider, 'posthog'),
-      eq(brandIntegrations.status, 'connected'),
-    ))
-    .limit(1)
+  const c = await posthogConn(brandId)
+  if (!c) return NOT_CONNECTED
+  const inactive = clampDays(inactiveDays, 14, 1, LOOKBACK_DAYS - 1)
+  const cappedLimit = Math.min(Math.max(1, limit || 100), 200)
 
-  if (!integration?.apiKey) return NOT_CONNECTED
-
-  const meta = (integration.metadata as Record<string, string> | null) ?? {}
-  const projectId = meta['project_id']
-  const host = (meta['posthog_host'] ?? 'https://us.posthog.com').replace(/\/$/, '')
-  if (!projectId) return NOT_CONNECTED
-
-  const cappedLimit = Math.min(limit, 200)
-
-  const data = await phQuery(host, projectId, integration.apiKey,
-    `SELECT
-       person.properties.email AS email,
-       max(timestamp) AS last_seen
+  const r = await phQuery(c,
+    `SELECT ${emailExpr(c)} AS email, max(timestamp) AS last_seen
      FROM events
-     WHERE person.properties.email IS NOT NULL
-       AND person.properties.email != ''
+     WHERE timestamp > now() - interval ${LOOKBACK_DAYS} day
      GROUP BY email
-     HAVING last_seen < now() - interval ${inactiveDays} day
+     HAVING isNotNull(email) AND last_seen < now() - interval ${inactive} day
      ORDER BY last_seen DESC
      LIMIT ${cappedLimit}`,
   )
+  const definition = `Users last seen between ${LOOKBACK_DAYS} and ${inactive} days ago (not since)`
+  if (!r.ok) return { connected: true, definition, inactiveDays: inactive, error: r.error }
 
-  const users = (data?.results ?? []).map(([email, lastSeen]) => ({
-    email: email as string,
-    lastSeen: lastSeen as string,
-  }))
-
+  const users = r.results.map(([email, lastSeen]) => ({ email: email as string, lastSeen: lastSeen as string }))
   return {
     connected: true,
-    definition: `Users last seen more than ${inactiveDays} days ago`,
-    inactiveDays,
+    definition,
+    inactiveDays: inactive,
     totalReturned: users.length,
+    ...(users.length === 0 ? { note: `No one with an email fits. ${emailNote(c)}` } : {}),
     users,
   }
 }

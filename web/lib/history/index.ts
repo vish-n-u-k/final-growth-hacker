@@ -23,6 +23,40 @@ export interface BrandDay {
 
 const DAY_MS = 86_400_000
 
+/** The day before today (UTC), the last complete day: what the nightly cron records. */
+export const yesterdayUtc = (now = Date.now()) => new Date(now - DAY_MS).toISOString().slice(0, 10)
+
+// The table is in drizzle/tracking.sql, run by hand. When that was missed every nightly save
+// failed quietly and the MCP said "No history yet", so the table is also made here on first use.
+const CREATE_TABLE = sql`CREATE TABLE IF NOT EXISTS brand_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  brand_id uuid NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+  date text NOT NULL,
+  data jsonb NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  CONSTRAINT brand_history_unique UNIQUE (brand_id, date)
+)`
+
+export const isMissingTable = (e: unknown) => {
+  const err = e as { code?: string; message?: string; cause?: { code?: string; message?: string } }
+  const code = err?.code ?? err?.cause?.code
+  const msg = `${err?.message ?? ''} ${err?.cause?.message ?? ''}`
+  return code === '42P01' || (/brand_history/.test(msg) && /does not exist/i.test(msg))
+}
+
+let tableChecked = false
+async function withTable<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (e) {
+    if (tableChecked || !isMissingTable(e)) throw e
+    tableChecked = true
+    console.error('[history] brand_history was missing; creating it (drizzle/tracking.sql)')
+    await db.execute(CREATE_TABLE)
+    return run()
+  }
+}
+
 export async function recordBrandHistory(brandId: string, date: string): Promise<BrandDay> {
   const from = new Date(`${date}T00:00:00Z`)
   const to = new Date(from.getTime() + DAY_MS)
@@ -47,6 +81,7 @@ export async function recordBrandHistory(brandId: string, date: string): Promise
     ? Math.round(scored.reduce((s, m) => s + (m.score ?? 0), 0) / scored.length)
     : null
 
+  // A failing count (e.g. a column missing in an older database) mustn't lose the whole day
   const [itemRow] = mods.length
     ? await db.select({ n: sql<number>`count(*)::int` })
         .from(moduleItems)
@@ -56,6 +91,7 @@ export async function recordBrandHistory(brandId: string, date: string): Promise
           gte(moduleItems.userCheckedAt, from),
           lt(moduleItems.userCheckedAt, to),
         ))
+        .catch((e) => { console.error('[history] ticked items count failed', e); return [{ n: 0 }] })
     : [{ n: 0 }]
 
   const m = diagnosis?.metrics
@@ -69,17 +105,66 @@ export async function recordBrandHistory(brandId: string, date: string): Promise
     activity,
   }
 
-  await db.insert(brandHistory)
+  await withTable(() => db.insert(brandHistory)
     .values({ brandId, date, data: day })
-    .onConflictDoUpdate({ target: [brandHistory.brandId, brandHistory.date], set: { data: day } })
+    .onConflictDoUpdate({ target: [brandHistory.brandId, brandHistory.date], set: { data: day } }))
   return day
+}
+
+export interface HistoryStatus {
+  ok: boolean
+  rows: number
+  firstDate: string | null
+  lastDate: string | null
+  recordedNow: boolean      // yesterday was missing and was saved during this call
+  problem: string | null    // plain reason when history is empty or behind
+}
+
+/**
+ * Makes sure yesterday is saved for this brand (the nightly cron may not have run, or failed),
+ * and says plainly what state the history is in. Used by the MCP history and goal tools.
+ */
+export async function ensureRecentHistory(brandId: string): Promise<HistoryStatus> {
+  const yesterday = yesterdayUtc()
+  let recordedNow = false
+  let problem: string | null = null
+  const read = () => db.select({
+    rows: sql<number>`count(*)::int`,
+    first: sql<string | null>`min(${brandHistory.date})`,
+    last: sql<string | null>`max(${brandHistory.date})`,
+  }).from(brandHistory).where(eq(brandHistory.brandId, brandId))
+
+  let stats: { rows: number; first: string | null; last: string | null }
+  try {
+    [stats] = await withTable(read)
+  } catch (e) {
+    return { ok: false, rows: 0, firstDate: null, lastDate: null, recordedNow: false, problem: `The history table can't be read: ${e instanceof Error ? e.message : String(e)}` }
+  }
+
+  if (stats.last !== yesterday) {
+    const before = stats.last
+    try {
+      await recordBrandHistory(brandId, yesterday)
+      recordedNow = true
+      ;[stats] = await read()
+    } catch (e) {
+      problem = `Saving yesterday's numbers failed: ${e instanceof Error ? e.message : String(e)}`
+    }
+    if (!problem) {
+      problem = before
+        ? `The nightly save last ran for ${before}, so days after that are missing (saved ${yesterday} just now). Check that the daily-signals cron is running in Vercel.`
+        : `Nothing was saved before ${yesterday} (saved just now). The nightly daily-signals cron hasn't recorded this brand yet, so trends start from today.`
+    }
+  }
+
+  return { ok: stats.rows > 0, rows: stats.rows, firstDate: stats.first, lastDate: stats.last, recordedNow, problem }
 }
 
 export async function getBrandHistory(brandId: string, days: number) {
   const since = new Date(Date.now() - days * DAY_MS).toISOString().slice(0, 10)
-  const rows = await db.select({ date: brandHistory.date, data: brandHistory.data })
+  const rows = await withTable(() => db.select({ date: brandHistory.date, data: brandHistory.data })
     .from(brandHistory)
     .where(and(eq(brandHistory.brandId, brandId), gte(brandHistory.date, since)))
-    .orderBy(asc(brandHistory.date))
+    .orderBy(asc(brandHistory.date)))
   return rows.map((r) => ({ date: r.date, ...(r.data as BrandDay) }))
 }

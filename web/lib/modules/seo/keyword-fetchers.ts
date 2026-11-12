@@ -259,7 +259,7 @@ type GscApiRow = { keys: string[]; impressions: number; clicks: number; position
 
 // Tries URL-prefix property first, then domain property — GSC has two formats.
 // rows = null when neither answered with data (errors says why).
-async function searchAnalytics(
+export async function searchAnalytics(
   clientEmail: string,
   privateKey: string,
   siteUrl: string,
@@ -349,4 +349,24 @@ export async function fetchGscPageTraffic(
     rowLimit: 1000,
   })
   return rows?.map((r) => ({ page: r.keys[0], clicks: r.clicks, impressions: r.impressions, position: r.position })) ?? null
+}
+
+export interface GscQueryPageRow { query: string; page: string; clicks: number; impressions: number; position: number }
+
+/** Every search the site showed up for in the last `days` days, per page, with Google's average
+ *  position (1 = first normal result). null = Search Console has no data for the site. Throws on auth errors. */
+export async function fetchGscQueryPages(
+  clientEmail: string,
+  privateKey: string,
+  siteUrl: string,
+  days = 28,
+): Promise<GscQueryPageRow[] | null> {
+  // Search Console's last 2-3 days are still filling in, so the window ends 3 days ago
+  const { rows } = await searchAnalytics(clientEmail, privateKey, siteUrl, {
+    startDate: isoDaysAgo(days + 3),
+    endDate: isoDaysAgo(3),
+    dimensions: ['query', 'page'],
+    rowLimit: 5000,
+  })
+  return rows?.map((r) => ({ query: r.keys[0], page: r.keys[1], clicks: r.clicks, impressions: r.impressions, position: r.position })) ?? null
 }

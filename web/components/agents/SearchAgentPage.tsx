@@ -23,6 +23,11 @@ type Item = { kind: 'topic'; key: string; t: Topic } | { kind: 'link'; key: stri
 
 const COUNTRIES: [string, string][] = [['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
 const ENGINE: Record<string, string> = { chat_gpt: 'ChatGPT', perplexity: 'Perplexity', gemini: 'Gemini', google_ai: 'Google AI Overview' }
+// Topics saved before difficulty 0 meant unknown say "easy (0)"
+const topicWhy = (t: Topic) => t.why.replace(/\beasy \(0\)/, 'difficulty unknown')
+// Pitches made from a "Get mentioned on" to-do were saved as 'list' before 'cited' existed
+const linkSourceLabel = (l: LinkOpportunity) =>
+  l.source === 'cited' || l.why.startsWith('AI answers keep citing') ? 'Cited by AI' : l.source === 'list' ? 'List article' : 'Links to rivals'
 const TASK: Record<AgentTask['kind'], [string, string]> = { write: ['✍', 'Write'], listing: ['🔗', 'Get listed'], refresh: ['↻', 'Refresh'], fix: ['!', 'Fix'], ads: ['$', 'Ads'] }
 const PROGRESS = ['Finding what people search', 'Checking where you rank', 'Asking ChatGPT and Perplexity about you', 'Finding sites that list competitors']
 // Article sites are pitched and Reddit is joined, not "listed"
@@ -84,6 +89,11 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   // Demo data stands in for DataForSEO, so research works without it
   const dataReady = flags.dataforseo || demo
   const [tab, setTab] = useState<TabKey>('todo')
+  // ?tab=rank (from Ask's "Which search words can I win?") opens that tab
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab')
+    if (t === 'todo' || t === 'done' || t === 'rank' || t === 'ai') setTab(t)
+  }, [])
   const [panel, setPanel] = useState(false)
   const [q, setQ] = useState('')
   const [openKey, setOpenKey] = useState<string | null>(null)
@@ -169,8 +179,8 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       const st = t.status
       return (
         <Card key={i.key} av={t.kind === 'improve' ? '↻' : '✍'} square name={t.keyword}
-          sub={<>{t.kind === 'improve' && <Src label="Improve your page" />}<span>{t.volume.toLocaleString('en-US')} searches a month</span>{t.difficulty !== null && <span>· {t.difficulty < 30 ? 'easy to win' : t.difficulty < 60 ? 'some competition' : 'hard to win'}</span>}</>}
-          why={t.why} quote={t.brief?.top ? `Today’s #1 result: ${t.brief.top}` : undefined}
+          sub={<>{t.kind === 'improve' && <Src label="Improve your page" />}<span>{t.volume.toLocaleString('en-US')} searches a month</span>{!!t.difficulty && <span>· {t.difficulty < 30 ? 'easy to win' : t.difficulty < 60 ? 'some competition' : 'hard to win'}</span>}</>}
+          why={topicWhy(t)} quote={t.brief?.top ? `Today’s #1 result: ${t.brief.top}` : undefined}
           state={st === 'drafted' ? <Tag tone="ok">Draft ready</Tag> : st === 'approved' ? <Tag tone="ok">Approved · put it on your site</Tag> : st === 'writing' ? <Tag><Spinner size={10} />Writing</Tag> : st === 'published' ? <Tag tone="ok">✓ Published</Tag> : st === 'skipped' ? <Tag>Skipped</Tag> : <Tag>Written next</Tag>}
           onSkip={isTodo && st !== 'writing' ? () => skip(i) : undefined}
           action={!isTodo ? view : st === 'picked'
@@ -183,7 +193,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       const st = l.status
       return (
         <Card key={i.key} av="🔗" square name={l.domain}
-          sub={<><Src label={l.source === 'list' ? 'List article' : 'Links to rivals'} tone={l.source === 'list' ? 'green' : undefined} />{l.authority !== null && <span>Authority {l.authority}</span>}{l.names.length > 0 && <span>· names {l.names.slice(0, 3).join(', ')}</span>}</>}
+          sub={<><Src label={linkSourceLabel(l)} tone={linkSourceLabel(l) === 'List article' ? 'green' : undefined} />{l.authority !== null && <span>Authority {l.authority}</span>}{l.names.length > 0 && <span>· names {l.names.slice(0, 3).join(', ')}</span>}</>}
           why={st === 'replied' ? 'They answered your pitch.' : st === 'sent' ? (l.nextFollowUpAt && !l.followupSent ? `One follow-up goes out ${fmtDate(l.nextFollowUpAt)} unless they reply.` : 'Waiting for a reply.') : l.why}
           quote={st === 'replied' && l.replyNote ? `“${l.replyNote}”` : l.title ? `“${l.title}”` : undefined}
           state={st === 'replied' ? <Tag tone="crit">Replied</Tag> : st === 'ready' ? <Tag>Pitch drafted</Tag> : st === 'new' ? <Tag tone="warn">Needs an email</Tag> : st === 'sent' ? <Tag tone="ok">✓ Pitched {fmtDate(l.sentAt)}</Tag> : st === 'won' ? <Tag tone="ok">✓ Got the link</Tag> : st === 'bounced' ? <Tag tone="crit">Bounced</Tag> : st === 'opted_out' ? <Tag>Said no</Tag> : <Tag>Skipped</Tag>}
@@ -256,7 +266,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       const t = i.t
       const draft = t.blogId ? draftById.get(t.blogId) : undefined
       const improve = t.kind === 'improve'
-      const side = <Side av={improve ? '↻' : '✍'} square name={t.keyword} sub={<span>{improve && t.pageUrl ? <>Your page <a className="th-link" href={t.pageUrl} target="_blank" rel="noopener noreferrer">{t.pageUrl.replace(/^https?:\/\/(www\.)?/, '')} ↗</a> · </> : null}{t.volume.toLocaleString('en-US')} searches a month</span>} quote={t.brief?.top ? `Today’s #1: ${t.brief.top}` : undefined} why={t.why} whyLabel="Why this one" />
+      const side = <Side av={improve ? '↻' : '✍'} square name={t.keyword} sub={<span>{improve && t.pageUrl ? <>Your page <a className="th-link" href={t.pageUrl} target="_blank" rel="noopener noreferrer">{t.pageUrl.replace(/^https?:\/\/(www\.)?/, '')} ↗</a> · </> : null}{t.volume.toLocaleString('en-US')} searches a month</span>} quote={t.brief?.top ? `Today’s #1: ${t.brief.top}` : undefined} why={topicWhy(t)} whyLabel="Why this one" />
       const flow = (at: number, title: string, hint: React.ReactNode, content: React.ReactNode, actions: React.ReactNode) =>
         <Flow back={back} crumb={t.keyword} side={side} steps={['Read the draft', 'Publish']} at={at} title={title} hint={hint} actions={actions} stepKey={`${i.key}:${at}:${t.status}`}>{content}</Flow>
       if (t.status === 'published' || t.status === 'skipped') {
@@ -317,7 +327,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
     if (i.kind === 'link') {
       const l = i.l
       const side = <Side av="🔗" square name={l.domain}
-        sub={<><Src label={l.source === 'list' ? 'List article' : 'Links to rivals'} tone={l.source === 'list' ? 'green' : undefined} /><a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See the page ↗</a></>}
+        sub={<><Src label={linkSourceLabel(l)} tone={linkSourceLabel(l) === 'List article' ? 'green' : undefined} /><a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See the page ↗</a></>}
         quote={l.title || undefined} why={l.why} whyLabel="Why this site" />
       const flow = (at: number, title: string, hint: React.ReactNode, content: React.ReactNode, actions: React.ReactNode, steps = ['Their email', 'Send pitch']) =>
         <Flow back={back} crumb={l.domain} side={side} steps={steps} at={at} title={title} hint={hint} actions={actions} stepKey={`${i.key}:${at}:${l.status}`}>{content}</Flow>
@@ -476,7 +486,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       help === 'reddit' ? 'Answer helpfully where people already ask. Say you make it, keep it short.' : k.detail,
       <div className="tu-stack">
         {k.url && <a className="btn cl-btn-outline tu-self" href={k.url} target="_blank" rel="noopener noreferrer">{help === 'reddit' ? 'Open the threads ↗' : 'Open the page ↗'}</a>}
-        {help === 'reddit' && <p className="cl-muted">The Lead Agent&apos;s Community tab finds posts like these every day and drafts a reply for each. <a className="th-link" href="/agents/leads">Open the Lead Agent →</a></p>}
+        {help === 'reddit' && <p className="cl-muted">Lead Finder&apos;s Reddit source finds posts like these every day and drafts a reply for each. <a className="th-link" href="/leads">Open Lead Finder →</a></p>}
       </div>,
       <>
         {skipBtn}
@@ -487,6 +497,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   // ── Rankings and AI answers ────────────────────────────────────────────────
 
   const change = new Map(data.rankChanges.map(c => [c.keyword, c]))
+  const fromGsc = data.ranks?.source === 'gsc'
   const rankRows = useShowAll(data.ranks?.rows.slice(0, 30) ?? [], tab)
   const [ideaQ, setIdeaQ] = useState('')
   const ideaAll = data.ideas?.rows ?? []
@@ -506,7 +517,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
                 <tr key={r.keyword}>
                   <td><b>{r.keyword}</b></td>
                   <td className="tu-num">{r.volume.toLocaleString('en-US')}</td>
-                  <td className="tu-num">{r.difficulty ?? '—'}</td>
+                  <td className="tu-num">{r.difficulty || '—'}</td>
                   <td className="tu-faint">{VERDICT[r.verdict]}</td>
                   <td>{r.verdict === 'picked' ? null
                     : <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy}
@@ -525,7 +536,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       {data.ranks && data.ranks.rows.length > 0 ? (
         <div className="tu-tbl">
           <table>
-            <thead><tr><th>Keyword</th><th>Your rank</th><th>Since last week</th><th>Searches</th><th>Page</th></tr></thead>
+            <thead><tr><th>Keyword</th><th>{fromGsc ? 'Avg. position' : 'Your rank'}</th><th>Since last week</th><th>{fromGsc ? 'Shown (28 days)' : 'Searches'}</th><th>Page</th></tr></thead>
             <tbody>
               {rankRows.items.map(r => {
                 const c = change.get(r.keyword)
@@ -535,7 +546,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
                     <td><b>{r.keyword}</b></td>
                     <td className="tu-num">#{r.rank}</td>
                     <td className={moved ? (moved > 0 ? 'tu-up' : 'tu-down') : undefined}>{moved ? `${moved > 0 ? '▲' : '▼'} ${Math.abs(moved)}` : c && c.before === null ? 'New' : '—'}</td>
-                    <td className="tu-num">{r.volume.toLocaleString('en-US')}</td>
+                    <td className="tu-num">{(fromGsc ? r.impressions ?? 0 : r.volume).toLocaleString('en-US')}</td>
                     <td className="tu-faint">{r.url.replace(/^https?:\/\/(www\.)?/, '')}</td>
                   </tr>
                 )
@@ -545,7 +556,9 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
         </div>
       ) : <div className="tu-empty">{data.ranks ? 'Google doesn’t show your site for any tracked searches yet. Posts you publish show up here.' : 'Shown after the first research.'}</div>}
       {rankRows.toggle}
-      <p className="cl-muted tu-note">{data.ranks ? <>Checked <Day iso={data.ranks.at} />{s.enabled ? ', and every Monday' : ''}.</> : null}</p>
+      <p className="cl-muted tu-note">{data.ranks ? <>Checked <Day iso={data.ranks.at} />{s.enabled ? ', and every Monday' : ''}. {fromGsc
+        ? 'From Google Search Console: your average place among the normal results over the last 28 days.'
+        : 'DataForSEO’s estimate, refreshed every few weeks, so small moves may not be real. Connect Google Search Console in Settings → Integrations for real positions.'}</> : null}</p>
       {data.adsTips.length > 0 && <>
         <Sec label="Google Ads tips" count={data.adsTips.length} />
         {!flags.googleAds && !demo && <p className="cl-muted tu-note">Connect Google Ads in Settings → Integrations to also see wasted spend.</p>}
@@ -566,6 +579,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   const last4 = data.mentionHistory.slice(-4)
   const asked4 = last4.reduce((t, h) => t + h.asked, 0)
   const avg = asked4 ? Math.round((100 * last4.reduce((t, h) => t + h.mentioned, 0)) / asked4) : null
+  const named = (a: AiAnswer) => [...a.brands, ...(a.others ?? [])]
   // The steadier, more useful part: which sites AI answers keep citing when they leave the brand out
   const cited = new Map<string, { n: number; url: string; title: string }>()
   for (const a of all.filter(x => !x.mentioned)) {
@@ -581,14 +595,15 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
     if (!a) return '—'
     const hits = a.hits ?? (a.mentioned ? 1 : 0), n = a.samples ?? 1
     const label = n > 1 ? `${hits} of ${n}` : a.mentioned ? 'Names you' : 'Not yet'
-    return <span title={a.brands.length ? `Named: ${a.brands.join(', ')}` : 'No tracked brand named'}><Tag tone={hits && a.mentioned ? 'ok' : undefined}>{label}{a.mentioned && a.position ? ` · #${a.position}` : ''}</Tag></span>
+    return <span title={named(a).length ? `Named: ${named(a).join(', ')}` : 'No other brand named'}><Tag tone={hits && a.mentioned ? 'ok' : undefined}>{label}{a.mentioned && a.position ? ` · #${a.position}` : ''}</Tag></span>
   }
   const aiTab = all.length ? (
     <>
       <p className="tu-lead">
         <b>{avg !== null ? `${brandName} is named in ${avg}% of AI answers` : `${brandName} AI answers`}</b>{' '}
-        <span className="cl-muted">· {last4.length > 1 ? `${last4.length}-week average` : 'first week, the average builds up weekly'} · asked <Day iso={data.answers?.at} /></span>
+        <span className="cl-muted">· {last4.length > 1 ? `${last4.length}-week average of ${asked4} answers` : `first week, ${asked4} answers, so a rough number`} · asked <Day iso={data.answers?.at} /></span>
       </p>
+      <p className="cl-muted tu-note">Asked through each assistant’s API (ChatGPT as gpt-4.1-mini with web search, Perplexity Sonar, Gemini 2.5 Flash). Answers in their apps can differ, so read this as a direction, not an exact score. The buyer questions take turns, a few each week.</p>
       {topCited.length > 0 && <>
         <Sec label="Sites AI answers cite when they leave you out" count={topCited.length} />
         <p className="cl-muted tu-note">These change less from week to week than who gets named. Getting mentioned on them is the surest way into the answers.</p>
@@ -609,7 +624,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       </>}
       {data.description && (
         <div className={`ag-note ${data.description.issue ? 'ag-note-warn' : ''}`}>
-          <b>How ChatGPT describes {brandName}:</b> {data.description.text || '(nothing)'}{data.description.issue ? <><br /><b>Problem:</b> {data.description.issue}</> : null}
+          <b>How AI describes {brandName}:</b> {data.description.text || '(nothing)'}{data.description.issue ? <><br /><b>Problem:</b> {data.description.issue}</> : null}
         </div>
       )}
       {questions.length > 0 && <>
@@ -641,7 +656,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
                 <tr key={o.question}>
                   <td><b>{o.question}</b></td>
                   <td>{o.mentioned ? <Tag tone="ok">Yes</Tag> : <Tag>Not yet</Tag>}</td>
-                  <td className="tu-faint">{o.brands.join(', ') || '—'}</td>
+                  <td className="tu-faint">{named(o).join(', ') || '—'}</td>
                 </tr>
               ))}
             </tbody>

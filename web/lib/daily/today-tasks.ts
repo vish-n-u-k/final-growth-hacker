@@ -17,6 +17,7 @@ import { db } from '@/lib/db'
 import { brands, brandIntegrations, modules, moduleItems, moduleCategories } from '@/lib/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getOpenSignals, getSnapshot, saveSnapshot } from '@/lib/signals'
+import { tidySearchFor } from '@/lib/agents/search-agent'
 import { runDiagnosis, type Diagnosis, type GrowthStage } from '@/lib/daily/diagnosis'
 import type { ActionCard, ActionCardType } from '@/lib/daily/signals'
 import { MODULE_MAP, isPathModule, isScoredItem } from '@/lib/modules/registry'
@@ -129,6 +130,9 @@ export async function getTodayTasks(
 ): Promise<TodayTasks | null> {
   const [brand] = await db.select().from(brands).where(eq(brands.id, brandId)).limit(1)
   if (!brand) return null
+  // Search Agent suggestions that fail its current checks (a platform, a rival's blog) go before
+  // their Today cards are read
+  await tidySearchFor(brandId).catch(() => {})
 
   // Signal tables may not exist before the migration — degrade to checklist only
   let diagnosis = await getSnapshot<Diagnosis>(brandId, 'diagnosis').catch(() => null)
@@ -310,7 +314,7 @@ export async function getTodayTasks(
 // social post, blog) keep those card types so the existing inline panels open.
 // Signals raised by the AI Agents open that agent's page
 const AGENT_PAGES: Record<string, { label: string; url: string }> = {
-  'lead-agent': { label: 'Lead Agent', url: '/agents/leads' },
+  'lead-agent': { label: 'Lead Finder', url: '/leads' },
   'search-agent': { label: 'Search Agent', url: '/agents/search' },
 }
 

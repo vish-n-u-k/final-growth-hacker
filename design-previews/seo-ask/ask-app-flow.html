@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GrowJin as an Ask app: the whole flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Storyboard: a step bar on top, the app on the left, "what happens behind" on the right.
+     App rules: one green button per screen, red only for replies, grey everywhere else. */
+  :root {
+    --bg: #ffffff; --soft: #f3f5f3; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --red: #b42318; --red-soft: #fdeceb;
+    --warn: #b45309; --pick: #eef0ee; --bar: #c9d3cb; --bar2: #9aa79e;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17;
+    --warn: #f0a24a; --pick: #1c241f; --bar: #3a463e; --bar2: #5d6b61; color-scheme: dark } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--pick); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  /* Step bar (not part of the app) */
+  .story { position: sticky; top: 0; z-index: 5; background: var(--pick); border-bottom: 1px solid var(--line);
+    padding: max(12px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px)); }
+  .story-in { max-width: 1280px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+  .story-h { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+  .stepbar { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; }
+  .stepbar::-webkit-scrollbar { display: none; }
+  .st { display: flex; align-items: center; gap: 7px; padding: 6px 12px 6px 7px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-size: 13.5px; cursor: pointer; white-space: nowrap; color: var(--dim); }
+  .st b { width: 20px; height: 20px; border-radius: 50%; background: var(--soft); display: grid; place-items: center; font-size: 11.5px; font-weight: 600; color: var(--faint); }
+  .st[aria-current="step"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .st[aria-current="step"] b { background: var(--bg); color: var(--text); }
+  .st.seen b { background: var(--green-soft); color: var(--green-ink); }
+  .navs { display: flex; gap: 6px; }
+  .nb { height: 32px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; font-size: 13.5px; }
+
+  .stage { max-width: 1280px; margin: 0 auto; padding: 18px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+  @media (max-width: 980px) { .stage { grid-template-columns: 1fr; } }
+
+  /* The app window */
+  .win { background: var(--bg); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.06); min-height: 680px; display: flex; flex-direction: column; }
+  .chrome { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-bottom: 1px solid var(--line); background: var(--soft); }
+  .chrome i { width: 10px; height: 10px; border-radius: 50%; background: var(--bar); }
+  .url { margin-left: 10px; padding: 3px 12px; border-radius: 7px; background: var(--bg); font-size: 12.5px; color: var(--faint); }
+  .body { flex: 1; display: flex; min-height: 0; }
+  .side { width: 200px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 16px 10px; font-size: 13.5px; }
+  .logo { padding: 2px 8px 18px; font: 600 16px var(--display); }
+  .nav { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 8px; color: var(--dim); cursor: default; }
+  .nav.on { background: var(--bg); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+  .nav svg { color: var(--faint); }
+  .gl { padding: 16px 10px 4px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .nav.sub { padding-left: 33px; font-size: 13px; }
+  .nav.sub.on { box-shadow: none; background: none; color: var(--text); }
+  @media (max-width: 700px) { .side { display: none; } }
+  .main { flex: 1; min-width: 0; overflow: auto; }
+  .col { max-width: 720px; margin: 0 auto; padding: 30px 22px 60px; animation: up .3s ease both; }
+  @keyframes up { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+  /* Behind the scenes */
+  .behind { position: sticky; top: 74px; background: var(--bg); border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 8px; }
+  .behind h2 { margin: 0 0 2px; font: 600 18px/1.25 var(--display); }
+  .behind .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .behind ul { margin: 12px 0 0; padding: 0; list-style: none; }
+  .behind li { padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--dim); }
+  .behind li b { color: var(--text); font-weight: 600; }
+  .behind code { font-size: 12.5px; background: var(--soft); padding: 1px 5px; border-radius: 5px; }
+  @media (max-width: 980px) { .behind { position: static; } }
+
+  /* Shared app bits */
+  h1 { margin: 0; font: 600 30px/1.15 var(--display); letter-spacing: -.01em; text-wrap: balance; }
+  .sub { margin: 8px 0 0; color: var(--faint); font-size: 15px; }
+  .eyebrow { display: block; margin-bottom: 5px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .btn { height: 42px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.go:hover { filter: brightness(1.06); }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; font-size: 14px; }
+  .back { border: 0; background: none; padding: 0; color: var(--faint); font-size: 14px; cursor: pointer; margin-bottom: 18px; }
+  .back:hover { color: var(--text); }
+
+  /* Onboarding */
+  .ob { max-width: 460px; margin: 0 auto; padding: 9vh 22px 40px; animation: up .3s ease both; }
+  .ob-n { font-size: 13px; color: var(--faint); margin-bottom: 10px; }
+  .field { display: flex; gap: 8px; margin-top: 22px; }
+  .field input { flex: 1; min-width: 0; height: 46px; padding: 0 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--bg); font-size: 16px; }
+  .conn { margin-top: 20px; }
+  .crow { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .crow-ic { width: 34px; height: 34px; border-radius: 10px; background: var(--soft); display: grid; place-items: center; color: var(--dim); flex: none; }
+  .crow-main { flex: 1; min-width: 0; }
+  .crow-main b { display: block; font-weight: 600; }
+  .crow-main span { font-size: 13.5px; color: var(--faint); }
+  .cbtn { height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); font-size: 13.5px; cursor: pointer; }
+  .cbtn.done { border-color: transparent; color: var(--green-ink); cursor: default; }
+  .ob-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 26px; }
+  .steps { list-style: none; margin: 22px 0 0; padding: 0; }
+  .steps li { display: flex; align-items: center; gap: 10px; padding: 7px 0; color: var(--faint); transition: color .2s; }
+  .steps li.on { color: var(--text); } .steps li.done { color: var(--dim); }
+  .steps li small { margin-left: auto; color: var(--faint); font-size: 13px; }
+  .tick { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; }
+  .on .tick { border-color: var(--bar2); border-top-color: var(--green); animation: spin .8s linear infinite; }
+  .done .tick { border-color: var(--green); background: var(--green); }
+  .done .tick::after { content: ''; width: 6px; height: 3px; border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: rotate(-45deg) translate(1px, -1px); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .learned { margin-top: 22px; border: 1px solid var(--line); border-radius: 14px; padding: 4px 18px; animation: up .3s ease both; }
+  .lr { display: grid; grid-template-columns: 110px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+  .lr:last-child { border-bottom: 0; }
+  .lr span { color: var(--faint); }
+
+  /* Ask bar */
+  .ask { display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 7px 0 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--bg); box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 6px 22px rgba(0,0,0,.05); margin-top: 20px; }
+  .ask svg { flex: none; color: var(--faint); }
+  .ask input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 16px; }
+  .ask input::placeholder { color: var(--faint); }
+  .ask-go { height: 40px; width: 40px; flex: none; border-radius: 11px; border: 0; background: var(--soft); color: var(--dim); cursor: pointer; display: grid; place-items: center; }
+  .ask.small { height: 46px; box-shadow: none; margin-top: 30px; }
+  .hint { margin-top: 10px; font-size: 13.5px; color: var(--faint); }
+  .hint b { color: var(--dim); font-weight: 500; }
+
+  /* Home cards */
+  .reply-row { display: flex; align-items: center; gap: 14px; margin-top: 22px; padding: 16px 18px; border-radius: 14px; background: var(--red-soft); cursor: pointer; border: 0; width: 100%; text-align: left; }
+  .reply-row .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--red); flex: none; }
+  .reply-row b { display: block; font-weight: 600; }
+  .reply-row span.s { font-size: 14px; color: var(--dim); }
+  .reply-row .go { margin-left: auto; color: var(--dim); font-size: 14px; white-space: nowrap; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+  @media (max-width: 1100px) { .grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+  .card { display: flex; flex-direction: column; gap: 8px; min-height: 140px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); text-align: left; cursor: pointer; transition: border-color .15s, transform .15s; }
+  .card:hover { border-color: var(--bar2); transform: translateY(-1px); }
+  .card .t { font-weight: 600; font-size: 14.5px; line-height: 1.3; }
+  .card .n { margin-top: auto; font: 600 28px/1 var(--display); }
+  .card .n small { font: 400 13px var(--body); color: var(--faint); margin-left: 5px; }
+  .card .ch { font-size: 12.5px; color: var(--faint); }
+  .card.off { cursor: default; opacity: .7; }
+  .card.off .n { font: 500 14px var(--body); color: var(--faint); }
+  .card.new { border-color: var(--bar2); }
+  .since { margin-top: 26px; padding: 14px 16px; border-radius: 12px; background: var(--soft); font-size: 14px; color: var(--dim); }
+  .since b { color: var(--text); font-weight: 600; }
+
+  /* Answer */
+  .short { margin: 12px 0 0; font-size: 18px; line-height: 1.55; color: var(--dim); max-width: 60ch; }
+  .short b { color: var(--text); font-weight: 600; }
+  .fig { margin-top: 22px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; }
+  .fig-h { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; font-size: 13px; color: var(--faint); }
+  .fig-h b { color: var(--text); font-weight: 600; font-size: 14px; }
+  .fig svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .fig svg text { font-family: var(--body); }
+  .next { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 20px; padding: 18px 20px; border-radius: 14px; background: var(--green-soft); }
+  .next-t { flex: 1 1 240px; min-width: 0; }
+  .next-t b { display: block; font-size: 16.5px; font-weight: 600; }
+  .next-t .s { color: var(--dim); font-size: 14px; }
+  .then { margin-top: 18px; }
+  .then-h { margin: 0; font-size: 13px; color: var(--faint); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 12px 2px; border-bottom: 1px solid var(--line); }
+  .row-n { width: 22px; height: 22px; flex: none; border-radius: 50%; background: var(--soft); color: var(--faint); font-size: 12px; display: grid; place-items: center; }
+  .row b { display: block; font-weight: 500; }
+  .row span.w { display: block; color: var(--faint); font-size: 13.5px; }
+  .src { margin-top: 16px; font-size: 13px; color: var(--faint); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .list { font-size: 14px; }
+  .li { display: flex; justify-content: space-between; gap: 14px; padding: 9px 0; border-top: 1px solid var(--line); }
+  .li:first-child { border-top: 0; }
+  .li b { font-weight: 600; } .li span { color: var(--faint); text-align: right; }
+  .posts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .post { border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  .post .img { aspect-ratio: 1; display: grid; place-items: center; font: 600 15px/1.2 var(--display); text-align: center; padding: 12px; color: var(--text); }
+  .post .cap { padding: 8px 10px; font-size: 12.5px; color: var(--dim); }
+  .bigs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .bigs b { display: block; font: 600 26px/1.1 var(--display); }
+  .bigs span { font-size: 12.5px; color: var(--faint); }
+  .bigs em { font-style: normal; font-size: 13px; color: var(--green-ink); font-weight: 600; margin-left: 4px; font-family: var(--body); }
+
+  /* Live answer for a typed question */
+  .live { margin-top: 18px; }
+  .tool { display: flex; align-items: center; gap: 10px; padding: 7px 0; font-size: 14px; color: var(--faint); }
+  .tool code { font-size: 12.5px; background: var(--soft); padding: 2px 6px; border-radius: 6px; color: var(--dim); }
+  .tool.on { color: var(--text); } .tool.done { color: var(--dim); }
+
+  /* Tool screen (hand-off) */
+  .crumb { font-size: 13px; color: var(--faint); margin-bottom: 14px; }
+  .crumb b { color: var(--dim); font-weight: 500; }
+  .lead { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 22px; margin-top: 18px; }
+  @media (max-width: 760px) { .lead { grid-template-columns: 1fr; } }
+  .facts { font-size: 14px; }
+  .fact { display: grid; grid-template-columns: 74px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .fact span { color: var(--faint); }
+  .mail { border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .mail .to { font-size: 13.5px; color: var(--faint); margin-bottom: 8px; }
+  .mail .to b { color: var(--text); font-weight: 500; }
+  .mail .subj { font-weight: 600; margin-bottom: 8px; }
+  .mail textarea { width: 100%; min-height: 170px; border: 0; resize: vertical; background: none; font-size: 14.5px; line-height: 1.55; outline: none; padding: 0; }
+  .acts { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .count { margin-left: auto; font-size: 13px; color: var(--faint); }
+  .brief { margin-top: 18px; border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; font-size: 14.5px; }
+  .brief ol { margin: 8px 0 0; padding-left: 20px; }
+  .brief li { margin: 6px 0; color: var(--dim); }
+  .brief li b { color: var(--text); font-weight: 600; }
+  .brief pre { margin: 10px 0 0; padding: 10px 12px; background: var(--soft); border-radius: 9px; font-size: 12.5px; white-space: pre-wrap; }
+  .thread-msg { margin-top: 14px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); font-size: 14.5px; }
+  .thread-msg.them { border-color: var(--red); border-width: 1px 1px 1px 3px; }
+  .thread-msg small { display: block; color: var(--faint); font-size: 12.5px; margin-bottom: 4px; }
+  .done-box { text-align: center; padding: 70px 10px; animation: up .3s ease both; }
+  .done-box .ok { width: 46px; height: 46px; margin: 0 auto 14px; border-radius: 50%; background: var(--green-soft); color: var(--green-ink); display: grid; place-items: center; }
+</style>
+</head>
+<body>
+
+<div class="story"><div class="story-in">
+  <span class="story-h">Flow</span>
+  <nav class="stepbar" id="stepbar" aria-label="Steps"></nav>
+  <div class="navs"><button class="nb" id="prev" aria-label="Previous step">←</button><button class="nb" id="nextb" aria-label="Next step">→</button></div>
+</div></div>
+
+<div class="stage">
+  <div class="win">
+    <div class="chrome"><i></i><i></i><i></i><span class="url" id="url">growjin.com</span></div>
+    <div class="body" id="body"></div>
+  </div>
+  <aside class="behind" id="behind" aria-live="polite"></aside>
+</div>
+
+<script>
+/* ---------- icons ---------- */
+const P = {
+  ask: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+  tools: '<path d="M4 7h16M4 12h16M4 17h10"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  gsc: '<path d="M4 19h16"/><path d="M7 15l4-4 3 2 5-6"/>',
+  ga: '<path d="M6 19V11M12 19V5M18 19v-6"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+  ig: '<rect x="4" y="4" width="16" height="16" rx="5"/><circle cx="12" cy="12" r="3.5"/>',
+  check: '<path d="M5 12l5 5 9-10"/>',
+};
+const ic = (k, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[k]}</svg>`;
+
+/* ---------- the questions on the Ask page (made-up Frekto data) ---------- */
+const Q = {
+  email: {
+    q: 'Who should I email today?', n: '5', nl: 'emails ready for your OK', ch: 'Found by this morning’s search',
+    short: '<b>5 small businesses</b> look like your best customers. Start with <b>Bloom Salon</b>: they post on Instagram but stopped 3 months ago.',
+    figH: ['Ready for your OK', 'Lead Finder · 04:00 today'],
+    fig: () => `<div class="list">${[['Bloom Salon', 'Hair salon, Leeds · last post 94 days ago'], ['Paper & Wick', 'Candle shop on Etsy · posts once a month'], ['Kofi Corner', 'Café, Bristol · no posts since June'], ['Tidy Paws', 'Dog groomer · Facebook only'], ['Loom Studio', 'Weaving classes · Instagram, 3 posts']].map(([a, b]) => `<div class="li"><b>${a}</b><span>${b}</span></div>`).join('')}</div>`,
+    next: ['Review Bloom Salon’s email', 'Written and ready. Approve, change or skip.', 'Review the email'], go: 'lead',
+    then: [['Paper & Wick, Kofi Corner and 2 more', 'Open next, one after another'], ['Find more leads', 'Runs again tomorrow at 04:00']],
+    src: 'Lead Finder search · emails checked with Hunter',
+  },
+  google: {
+    q: 'Why am I not on Google?', n: '38', nl: 'of 412 pages on Google', ch: 'Same as last week',
+    short: 'Google knows <b>412 of your pages</b> but kept only <b>38</b>. It’s busy with 300 thin post pages, so your blog posts are still waiting.',
+    figH: ['Where your pages are stuck', 'Last 28 days'],
+    fig: () => funnel(),
+    next: ['Hide the 300 post pages from Google', 'They get 0 visits. We wrote the fix for whoever runs your site.', 'Get the fix'], go: 'fix',
+    then: [['Ask Google to read your 5 best posts', 'Up to 10 a day in Search Console'], ['Link to your blog from the homepage', '14 posts have no page linking to them']],
+    src: 'Search Console · sitemap.xml read today',
+  },
+  post: {
+    q: 'What should I post this week?', n: '3', nl: 'posts drafted', ch: 'From what your buyers search',
+    short: 'Three posts are drafted from what small shops ask about this week. <b>“5 posts a café can make in 10 minutes”</b> fits best.',
+    figH: ['Drafted for you', 'Instagram · this week'],
+    fig: () => `<div class="posts">${[['5 posts a café can make in 10 minutes', 'var(--green-soft)', 'Mon'], ['Before / after: one photo, three posts', 'var(--soft)', 'Wed'], ['What to post when you have nothing new', 'var(--pick)', 'Fri']].map(([t, c, d]) => `<div class="post"><div class="img" style="background:${c}">${t}</div><div class="cap">${d} · ready</div></div>`).join('')}</div>`,
+    next: ['Check Monday’s post', 'Caption and picture are ready. Change anything, then schedule.', 'Open the post'], go: 'tool:Social Studio',
+    then: [['Wednesday and Friday', 'Open after Monday’s'], ['Turn the best one into a blog post', 'It also answers a search with 480 a month']],
+    src: 'Search Agent topics · Social Studio drafts',
+  },
+  talk: {
+    q: 'Where should I talk about my product?', n: '3', nl: 'threads worth a reply', ch: 'Posted in the last 24 h',
+    short: '<b>3 fresh threads</b> ask how to keep posting when busy. Reply helpfully in all three; mention Frekto in <b>one</b>.',
+    figH: ['Worth replying to', 'Reddit and Hacker News'],
+    fig: () => `<div class="list">${[['What do you use to keep posting on Instagram?', 'r/smallbusiness · 2 h · mention OK'], ['Is Buffer still worth it in 2026?', 'r/socialmedia · 5 h · already on Google'], ['How do solo founders stay consistent?', 'r/Entrepreneur · 1 h · help only']].map(([a, b]) => `<div class="li"><b>${a}</b><span>${b}</span></div>`).join('')}</div>`,
+    next: ['Reply in r/smallbusiness', 'A reply is written. You post it yourself, from your account.', 'Read the reply'], go: 'tool:Lead Finder · Join conversations',
+    then: [['The other 2 threads', 'Help only, no product'], ['Your mix this week', '6 helpful replies, 1 mention']],
+    src: 'Reddit and Hacker News search · this morning',
+  },
+  keys: {
+    q: 'Which search words can I win?', n: '7', nl: 'words you can win', ch: '2 new this week',
+    short: 'Skip the big words for now. <b>7 buyer searches</b> are easy enough for a new site, about <b>2,900 searches a month</b> together.',
+    figH: ['Easy and searched', 'DataForSEO · US'],
+    fig: () => `<div class="list">${[['instagram caption generator', '880 a month · easy · wants a tool'], ['ai post generator for business', '590 · easy'], ['social media post maker', '480 · easy']].map(([a, b]) => `<div class="li"><b>${a}</b><span>${b}</span></div>`).join('')}</div>`,
+    next: ['Write “social media post maker” page', 'Drafted from the top 3 results. You add one real example.', 'Open the draft'], go: 'tool:Search Agent · Posts to write',
+    then: [['Make a free caption tool', 'Bigger job; 880 searches'], ['Wait on “social media management”', 'Too hard for now']],
+    src: 'Search Agent weekly research',
+  },
+  track: {
+    q: 'Am I on track?', n: '+28%', nl: 'seen on Google', ch: 'Week 2 of 3',
+    short: 'Yes. <b>More people see you on Google</b> each week, and 9 more blog posts got on Google. Clicks usually follow a few weeks later.',
+    figH: ['This week', '27 Oct – 2 Nov'],
+    fig: () => `<div class="bigs"><div><b>1,240<em>+28%</em></b><span>times shown on Google</span></div><div><b>15 <span>of 22</span></b><span>blog posts on Google</span></div><div><b>6</b><span>sites link to you · goal 10–15</span></div></div>`,
+    next: ['Get listed on 3 more sites', 'That’s the one goal behind. SaaSHub first, it’s free.', 'Show me how'], go: 'tool:Search Agent · Other things to do',
+    then: [['Don’t change the site until 23 Nov', 'Google is re-reading it'], ['Ask again next Monday', 'Same numbers, same place']],
+    src: 'Search Console · backlinks · your to-dos',
+  },
+  replies: {
+    q: 'Did anyone reply?', n: '2', nl: 'replies', ch: '',
+    short: '<b>Bloom Salon</b> wants a call, and <b>Kofi Corner</b> asked about the price.',
+    figH: ['Replies', 'Since yesterday'],
+    fig: () => `<div class="list"><div class="li"><b>Bloom Salon · wants a call</b><span>“Sounds good, can we talk Thursday?”</span></div><div class="li"><b>Kofi Corner · question</b><span>“How much is it a month?”</span></div></div>`,
+    next: ['Answer Bloom Salon', 'They asked for Thursday. A reply with two times is written.', 'Open the reply'], go: 'reply',
+    then: [['Kofi Corner', 'A reply with the price is written'], ['Follow-ups stop by themselves', 'For anyone who replied']],
+    src: 'Gmail · threads GrowJin sent',
+  },
+};
+const HOME = ['email', 'google', 'post', 'talk', 'keys', 'track'];
+
+function funnel() {
+  const rows = [['Google knows', 412, 'var(--bar)'], ['Google read', 160, 'var(--bar)'], ['Kept on Google', 38, 'var(--bar2)'], ['Clicked', 9, 'var(--green)']];
+  const W = 600; let y = 0, o = '';
+  rows.forEach(([l, v, c]) => { const w = Math.max(6, v / 412 * (W - 170)); o += `<text x="0" y="${y + 18}" font-size="13" fill="var(--dim)">${l}</text><rect x="120" y="${y + 4}" width="${w}" height="20" rx="5" fill="${c}"/><text x="${128 + w}" y="${y + 19}" font-size="13.5" font-weight="600" fill="var(--text)">${v}</text>`; y += 36; });
+  return `<svg viewBox="0 0 ${W} ${y}" role="img" aria-label="412 known, 160 read, 38 kept, 9 clicked">${o}</svg>`;
+}
+function bars7() {
+  const v = [41, 55, 48, 62, 70, 66, 70], W = 600, H = 130, bw = 56;
+  let o = '';
+  v.forEach((n, i) => { const h = n / 70 * (H - 30); const x = i * (W / 7) + 12; o += `<rect x="${x}" y="${H - 20 - h}" width="${bw}" height="${h}" rx="5" fill="${i === 6 ? 'var(--green)' : 'var(--bar)'}"/><text x="${x + bw / 2}" y="${H - 4}" font-size="11.5" text-anchor="middle" fill="var(--faint)">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]}</text>`; });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Visits per day last week">${o}</svg>`;
+}
+
+/* ---------- steps ---------- */
+const STEPS = [
+  { id: 'site', label: 'Add your site', url: 'growjin.com/start' },
+  { id: 'connect', label: 'Connect', url: 'growjin.com/start' },
+  { id: 'first', label: 'First look', url: 'growjin.com/start' },
+  { id: 'home', label: 'Ask home', url: 'growjin.com' },
+  { id: 'answer', label: 'An answer', url: 'growjin.com/ask/email' },
+  { id: 'work', label: 'Do the work', url: 'growjin.com/leads/bloom-salon' },
+  { id: 'typed', label: 'Ask anything', url: 'growjin.com/ask' },
+  { id: 'morning', label: 'Next morning', url: 'growjin.com' },
+];
+const BEHIND = {
+  site: ['Step 1 · Add your site', 'One field. Nothing else to fill in yet.', [
+    '<b>Same as today’s onboarding step 1.</b> We read the website and draft the brand profile ourselves.',
+    'The old step 2 (check the brand details) moves to the “First look” screen, where it’s shown as a short summary instead of a form.']],
+  connect: ['Step 2 · Connect', 'Optional. Each connection opens up more questions.', [
+    '<b>Search Console</b> → the Google questions (pages on Google, words you can win, on track).',
+    '<b>Gmail</b> → sending emails and “Did anyone reply?”.',
+    '<b>Google Analytics</b> → visitor questions.',
+    'Skipped ones don’t block anything. Their cards say “Connect to answer” on the Ask page.']],
+  first: ['Step 3 · First look', 'Runs once, about 1–2 minutes, while they watch.', [
+    'Runs what already exists: <b>brand profile</b>, <b>ideal customer card</b> (<code>draftIcp</code>), <b>competitors</b>, a first <b>Search Console</b> read, a first <b>Lead Finder</b> search, the <b>Search Agent</b> research.',
+    'Then it fills in every question’s answer for the Ask page.',
+    'They confirm “what we learned”. A wrong profile makes every answer wrong, so this is the one check we ask for.']],
+  home: ['Step 4 · Ask home', 'The new home page. It replaces Today and Growth Path.', [
+    '<b>Each card is a fixed question.</b> Every morning at 04:00 the daily run fills its number, its one-line answer, its picture data and its next step, and saves them per brand.',
+    'Opening the page only reads saved answers: <b>instant, no AI cost</b>.',
+    'Order: replies first (red), then cards with something to do, then the rest.',
+    'The sidebar shrinks to Ask, Tools and Settings. Tools are still there for anyone who wants them.']],
+  answer: ['Step 5 · An answer', 'Always the same shape, so it’s quick to read.', [
+    'One sentence, one picture, one green step, two quiet next steps, and where the data came from.',
+    'Numbers come straight from the data. AI only writes the sentence, once, at 04:00.',
+    'The green button links to the exact item in an existing tool, not to the tool’s home page.']],
+  work: ['Step 6 · Do the work', 'The tools become the workbench.', [
+    'This is Lead Finder’s existing “opened lead” screen. <b>No new tool to build.</b>',
+    'Finishing one opens the next. When all are done, “Back to Ask”, and that card’s number drops.',
+    'The same goes for every card: posts → Social Studio, Google fixes → a brief to copy, threads → Lead Finder’s Join conversations.']],
+  typed: ['Step 7 · Ask anything', 'For questions that aren’t a card.', [
+    'First we check if it matches a card. If it does, that answer opens (free, instant).',
+    'If not, <b>Claude answers live</b> with the MCP tools we already have (<code>get_ga_analytics</code>, <code>get_gsc_data</code>, <code>dataforseo</code>…). It takes 5–20 s and costs a few cents. The steps show while it works.',
+    'Questions people type often can become new cards.']],
+  morning: ['Step 8 · Next morning', 'Why people come back.', [
+    'Overnight: replies are checked, follow-ups go out, new leads are found and the numbers are refreshed.',
+    '<b>Replies jump to the top in red.</b> A “since yesterday” line says what changed.',
+    'The same questions stay in the same place, so the numbers can be compared day to day.']],
+};
+
+let cur = 0, seen = new Set([0]), pickQ = 'email', leadI = 0, timers = [];
+const conn = { gsc: false, ga: false, gmail: false };
+const clear = () => { timers.forEach(clearTimeout); timers = []; };
+const later = (f, ms) => timers.push(setTimeout(f, ms));
+
+function go(i) { clear(); cur = Math.max(0, Math.min(STEPS.length - 1, i)); seen.add(cur); render(); }
+
+function render() {
+  const s = STEPS[cur];
+  document.getElementById('stepbar').innerHTML = STEPS.map((x, i) => `<button class="st${seen.has(i) && i !== cur ? ' seen' : ''}" data-step="${i}" ${i === cur ? 'aria-current="step"' : ''}><b>${i + 1}</b>${x.label}</button>`).join('');
+  document.querySelector('[aria-current="step"]').scrollIntoView({ block: 'nearest', inline: 'center' });
+  document.getElementById('url').textContent = s.id === 'answer' ? 'growjin.com/ask/' + pickQ : s.url;
+  const [h, sub, items] = BEHIND[s.id];
+  document.getElementById('behind').innerHTML = `<span class="k">What happens behind</span><h2>${h}</h2><div class="sub" style="margin-top:4px;font-size:14px">${sub}</div><ul>${items.map(t => `<li>${t}</li>`).join('')}</ul>`;
+  document.getElementById('body').innerHTML = SCREENS[s.id]();
+  AFTER[s.id] && AFTER[s.id]();
+}
+
+/* ---------- app shell ---------- */
+const shell = (inner, on = 'ask') => `<nav class="side" aria-label="App"><div class="logo">GrowJin</div>
+  <div class="nav ${on === 'ask' ? 'on' : ''}">${ic('ask')}Ask</div>
+  <div class="gl">Tools</div>
+  ${['Lead Finder', 'Email Outreach', 'Search Agent', 'Social Studio', 'Analytics'].map(t => `<div class="nav sub ${on === t ? 'on' : ''}">${t}</div>`).join('')}
+  <div class="gl"></div><div class="nav">${ic('gear')}Settings</div></nav><div class="main">${inner}</div>`;
+const askBar = (ph = 'Ask anything about your business…', cls = '', val = '') => `<form class="ask ${cls}" data-ask>${ic('ask', 20)}<input aria-label="Ask a question" placeholder="${ph}" value="${val}" autocomplete="off"><button class="ask-go" aria-label="Ask">${ic('arrow', 18)}</button></form>`;
+const card = k => { const q = Q[k]; return `<button class="card" data-q="${k}"><span class="t">${q.q}</span><span class="n">${q.n}<small>${q.nl}</small></span><span class="ch">${q.ch}</span></button>`; };
+
+const SCREENS = {
+  site: () => `<div class="main"><div class="ob"><div class="ob-n">GrowJin</div><h1>Let’s see how your business can grow.</h1><p class="sub">Start with your website. We’ll read it and do the rest.</p>
+    <form class="field" data-site><input aria-label="Your website" value="frekto.ai"><button class="btn go">Start</button></form></div></div>`,
+  connect: () => `<div class="main"><div class="ob"><div class="ob-n">Almost there</div><h1>Connect what you have</h1><p class="sub">Each one lets GrowJin answer more. You can skip all of them.</p>
+    <div class="conn">${[['gsc', 'gsc', 'Google Search Console', 'How you show up on Google'], ['gmail', 'mail', 'Gmail', 'Send emails and see replies'], ['ga', 'ga', 'Google Analytics', 'Who visits your site']].map(([k, i, n, d]) => `<div class="crow"><span class="crow-ic">${ic(i, 18)}</span><span class="crow-main"><b>${n}</b><span>${d}</span></span><button class="cbtn ${conn[k] ? 'done' : ''}" data-conn="${k}">${conn[k] ? '✓ Connected' : 'Connect'}</button></div>`).join('')}</div>
+    <div class="ob-foot"><button class="link" data-next>Skip for now</button><button class="btn go" data-next>Continue</button></div></div></div>`,
+  first: () => `<div class="main"><div class="ob" style="max-width:520px"><div class="ob-n">frekto.ai</div><h1>Taking a first look</h1>
+    <ul class="steps" id="fsteps">${[['Reading frekto.ai', ''], ['Working out who your customers are', ''], ['Finding your competitors', ''], ['Checking how you show up on Google', 'Search Console'], ['Looking for your first leads', 'Lead Finder'], ['Getting your answers ready', '']].map(([t, s]) => `<li><span class="tick"></span>${t}<small>${s}</small></li>`).join('')}</ul>
+    <div id="learned"></div></div></div>`,
+  home: () => shell(`<div class="col" style="max-width:820px"><h1>What do you want to know?</h1><p class="sub">About Frekto · checked this morning at 04:00</p>${askBar()}
+    <div class="grid">${HOME.map(card).join('')}</div>
+    <p class="hint">Click a question for the answer and what to do next. <b>Ask anything else</b> in the box.</p></div>`),
+  answer: () => answerScreen(pickQ),
+  work: () => workScreen(),
+  typed: () => shell(`<div class="col"><button class="back" data-step="3">← Ask</button>${askBar('', 'small', 'How many people visited my site last week?')}<div id="typed"></div></div>`),
+  morning: () => shell(`<div class="col" style="max-width:820px"><h1>Good morning.</h1><p class="sub">About Frekto · checked today at 04:00</p>
+    <button class="reply-row" data-q="replies"><span class="dot"></span><span><b>2 people replied</b><span class="s">Bloom Salon wants a call · Kofi Corner asked about the price</span></span><span class="go">Open →</span></button>
+    ${askBar()}
+    <div class="grid">${card('email').replace('>5<', '>4<').replace('Found by this morning’s search', '3 new since yesterday')}${card('google').replace('>38<', '>44<').replace('Same as last week', '6 more than yesterday')}${card('post')}${card('talk')}${card('keys')}${card('track')}</div>
+    <div class="since"><b>Since yesterday:</b> 3 follow-ups sent, 6 more pages on Google, 3 new leads found.</div></div>`),
+};
+const AFTER = {
+  first() {
+    const lis = [...document.querySelectorAll('#fsteps li')]; let i = 0;
+    const tick = () => { lis.forEach((li, j) => li.className = j < i ? 'done' : j === i ? 'on' : ''); if (i++ < lis.length) later(tick, 650); else later(showLearned, 250); };
+    tick();
+  },
+  typed() {
+    const box = document.getElementById('typed');
+    const tools = [['Checking your saved questions', 'no match'], ['Asking Google Analytics', 'get_ga_analytics'], ['Splitting visits by where they came from', 'get_ga_analytics'], ['Writing the answer', '']];
+    box.innerHTML = `<div class="live">${tools.map(([t, c]) => `<div class="tool"><span class="tick"></span>${t}${c ? ` <code>${c}</code>` : ''}</div>`).join('')}</div>`;
+    const els = [...box.querySelectorAll('.tool')]; let i = 0;
+    const tick = () => { els.forEach((e, j) => e.className = 'tool ' + (j < i ? 'done' : j === i ? 'on' : '')); if (i++ < els.length) later(tick, 700); else later(() => {
+      box.innerHTML = `<div style="animation:up .3s ease both;margin-top:26px"><span class="eyebrow">Answered live · 6 seconds</span><h1>How many people visited my site last week?</h1>
+        <p class="short"><b>412 visits</b>, up 18% on the week before. Most came from <b>Instagram (140)</b> and <b>Google (96)</b>. Sunday was the best day.</p>
+        <div class="fig"><div class="fig-h"><b>Visits a day</b><span>27 Oct – 2 Nov</span></div>${bars7()}</div>
+        <div class="next"><div class="next-t"><span class="eyebrow">Start here</span><b>Post again on Sunday</b><span class="s">Your Sunday posts bring the most visits. One is drafted.</span></div><button class="btn go">Open the post</button></div>
+        <p class="src"><span>Data: Google Analytics, last 7 days</span><span>Asked often? It can become a card.</span></p></div>`;
+    }, 300); };
+    tick();
+  },
+};
+function showLearned() {
+  document.getElementById('learned').innerHTML = `<div class="learned">
+    <div class="lr"><span>Frekto is</span>An AI social media post maker for small businesses</div>
+    <div class="lr"><span>Your buyers</span>Small shops, cafés and salons that post on Instagram themselves</div>
+    <div class="lr"><span>Competitors</span>Predis.ai, Later, Buffer</div>
+    <div class="lr"><span>Found</span>5 leads · 3 threads · 412 pages on Google’s list</div></div>
+    <div class="ob-foot"><button class="link">Change something</button><button class="btn go" data-next>Looks right</button></div>`;
+}
+function answerScreen(k) {
+  const q = Q[k];
+  return shell(`<div class="col"><button class="back" data-step="${k === 'replies' ? 7 : 3}">← Ask</button><span class="eyebrow">Ready since 04:00</span><h1>${q.q}</h1><p class="short">${q.short}</p>
+    <div class="fig"><div class="fig-h"><b>${q.figH[0]}</b><span>${q.figH[1]}</span></div>${q.fig()}</div>
+    <div class="next"><div class="next-t"><span class="eyebrow">Start here</span><b>${q.next[0]}</b><span class="s">${q.next[1]}</span></div><button class="btn go" data-go="${q.go}">${q.next[2]}</button></div>
+    <div class="then"><p class="then-h">Then</p>${q.then.map(([a, b], i) => `<div class="row"><span class="row-n">${i + 2}</span><span><b>${a}</b><span class="w">${b}</span></span></div>`).join('')}</div>
+    <p class="src"><span>Data: ${q.src}</span></p>
+    ${askBar('Ask a follow-up…', 'small')}</div>`);
+}
+
+/* ---------- hand-off screens (existing tools) ---------- */
+const LEADS = [
+  ['Bloom Salon', 'bloomsalon.co.uk', 'Hair salon, Leeds', '3 people', 'Instagram · last post 94 days ago', 'Hi Amy,\n\nI saw Bloom’s Instagram went quiet in August. Your before / after photos got great comments.\n\nFrekto turns one photo into a week of posts in about 10 minutes. Want me to make three from your last cut, free, so you can see?\n\nVishnu'],
+  ['Paper & Wick', 'etsy.com/shop/paperandwick', 'Candle shop on Etsy', '1 person', 'Instagram · once a month', 'Hi Paper & Wick team,\n\nYour autumn candles look lovely, but they only reach Instagram once a month.\n\nFrekto makes a week of posts from your Etsy photos. Want three made from your Ember candle, free?\n\nVishnu'],
+];
+function workScreen() {
+  if (leadI >= LEADS.length) return shell(`<div class="col"><div class="done-box"><div class="ok">${ic('check', 22)}</div><h1>All caught up</h1><p class="sub">2 emails approved. They go out within your daily limit, with follow-ups.</p><div style="margin-top:22px"><button class="btn go" data-step="3">Back to Ask</button></div></div></div>`, 'Lead Finder');
+  const [n, site, sells, size, social, mail] = LEADS[leadI];
+  return shell(`<div class="col" style="max-width:860px"><div class="crumb"><button class="link" data-step="4">← Back to the answer</button> · <b>Lead Finder</b> · ${leadI + 1} of 5</div>
+    <h1>${n}</h1><p class="sub">Very likely · from Google · ${site}</p>
+    <div class="lead"><div class="facts"><div class="fact"><span>Sells</span>${sells}</div><div class="fact"><span>Size</span>${size}</div><div class="fact"><span>Social</span>${social}</div><div class="fact"><span>Why</span>Posts themselves, then stops when busy</div></div>
+    <div><div class="mail"><div class="to">To <b>${leadI ? 'hello@paperandwick.com' : 'amy@bloomsalon.co.uk'}</b></div><div class="subj">${leadI ? 'Three posts from your Ember candle?' : 'Three posts from your last cut?'}</div><textarea aria-label="Email">${mail}</textarea></div>
+    <div class="acts"><button class="btn go" data-approve>Approve and send</button><button class="link" data-approve>Skip</button><span class="count">Follow-ups go out by themselves</span></div></div></div></div>`, 'Lead Finder');
+}
+function fixScreen() {
+  return shell(`<div class="col"><div class="crumb"><button class="link" data-back-answer>← Back to the answer</button> · <b>Search Agent</b> · Fix for your site</div>
+    <h1>Hide the 300 post pages from Google</h1><p class="sub">Give this to whoever runs your website. Takes about 30 minutes.</p>
+    <div class="brief"><b>What to change</b><ol><li><b>Add a noindex tag</b> to every page under <code>/p/</code>. The pages stay live for people.</li><li><b>Take them out of sitemap.xml.</b> Keep the gallery page.</li><li><b>Don’t block them in robots.txt yet.</b> Google has to see the noindex first.</li></ol>
+    <pre>&lt;meta name="robots" content="noindex, follow"&gt;</pre></div>
+    <div class="acts"><button class="btn go" data-done-fix>Copy the brief</button><button class="link" data-done-fix>Mark as done</button><span class="count">We’ll check it worked tomorrow morning</span></div></div>`, 'Search Agent');
+}
+function replyScreen() {
+  return shell(`<div class="col"><div class="crumb"><button class="link" data-back-answer>← Back to the answer</button> · <b>Email Outreach</b> · Inbox</div>
+    <h1>Bloom Salon</h1><p class="sub">Wants a call</p>
+    <div class="thread-msg"><small>You · Monday</small>Hi Amy, I saw Bloom’s Instagram went quiet in August…</div>
+    <div class="thread-msg them"><small>Amy · today 08:12</small>Sounds good, can we talk Thursday?</div>
+    <div class="mail" style="margin-top:14px"><textarea aria-label="Reply">Hi Amy,\n\nThursday works. Would 10:00 or 14:00 suit you? I’ll bring three posts made from your photos.\n\nVishnu</textarea></div>
+    <div class="acts"><button class="btn go" data-step="7">Send reply</button><span class="count">Sent from your Gmail</span></div></div>`, 'Email Outreach');
+}
+function toolScreen(name) {
+  const [tool, part] = name.split(' · ');
+  return shell(`<div class="col"><div class="crumb"><button class="link" data-back-answer>← Back to the answer</button> · <b>${tool}</b>${part ? ' · ' + part : ''}</div>
+    <h1>${Q[pickQ].next[0]}</h1><p class="sub">This opens the existing ${tool} screen at this exact item. Shown here as a placeholder.</p>
+    <div class="fig" style="height:260px;display:grid;place-items:center;color:var(--faint);background:var(--soft);border-style:dashed">${tool} · the item opens here</div>
+    <div class="acts"><button class="btn go" data-step="3">Done · back to Ask</button></div></div>`, tool);
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  const t = e.target;
+  const st = t.closest('[data-step]'); if (st) { e.preventDefault(); if (+st.dataset.step === 3 || +st.dataset.step === 7) leadI = 0; return go(+st.dataset.step); }
+  if (t.closest('[data-next]')) { e.preventDefault(); return go(cur + 1); }
+  const c = t.closest('[data-conn]'); if (c) { conn[c.dataset.conn] = true; return render(); }
+  const q = t.closest('[data-q]'); if (q) { pickQ = q.dataset.q; clear(); cur = 4; seen.add(4); return render(); }
+  if (t.closest('[data-approve]')) { leadI++; return render(); }
+  if (t.closest('[data-back-answer]')) return render();
+  if (t.closest('[data-done-fix]')) { document.getElementById('body').innerHTML = shell(`<div class="col"><div class="done-box"><div class="ok">${ic('check', 22)}</div><h1>Brief copied</h1><p class="sub">Tomorrow morning we check the pages are hidden. The card’s number will change once Google re-reads them.</p><div style="margin-top:22px"><button class="btn go" data-step="3">Back to Ask</button></div></div></div>`, 'Search Agent'); return; }
+  const g = t.closest('[data-go]'); if (g) {
+    const v = g.dataset.go;
+    if (v === 'lead') { leadI = 0; return go(5); }
+    const b = document.getElementById('body');
+    b.innerHTML = v === 'fix' ? fixScreen() : v === 'reply' ? replyScreen() : toolScreen(v.slice(5));
+    b.querySelector('.main').scrollTop = 0;
+  }
+});
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  if (e.target.matches('[data-site]')) return go(1);
+  if (e.target.matches('[data-ask]')) go(6);
+});
+document.getElementById('prev').onclick = () => go(cur - 1);
+document.getElementById('nextb').onclick = () => go(cur + 1);
+render();
+</script>
+</body>
+</html>

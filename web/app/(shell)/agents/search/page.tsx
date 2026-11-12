@@ -9,7 +9,7 @@ import { searchDataReady } from '@/lib/agents/dataforseo'
 import { agentsDemo, demoForced, withDemo } from '@/lib/agents/demo'
 import { readDemoSwitch } from '@/lib/agents/store'
 import { readGoogleAdsCreds } from '@/lib/agents/google-ads'
-import { searchFallback } from '@/lib/agents/search-agent'
+import { searchFallback, tidySearchData } from '@/lib/agents/search-agent'
 import { readSearchData } from '@/lib/agents/store'
 import SearchAgentPage from '@/components/agents/SearchAgentPage'
 
@@ -32,7 +32,9 @@ async function SearchAgent() {
   const b = await loadBrandContext(brand.id)
   if (!b) redirect('/onboarding')
 
-  const data = (await readSearchData(brand.id).catch(() => null)) ?? searchFallback(b)()
+  // Old suggestions that fail today's checks (instagram.com, a rival's blog) are tidied away first
+  const saved = await readSearchData(brand.id).catch(() => null)
+  const data = saved ? await tidySearchData(brand.id, b, saved).catch(() => saved) : searchFallback(b)()
   const ids = data.topics.map(t => t.blogId).filter((x): x is string => !!x)
   const [blogs, ads] = await Promise.all([
     ids.length

@@ -19,13 +19,18 @@ function splitName(name: string): { first: string; last: string } | null {
   return parts.length >= 2 && parts[1].length > 1 ? { first: parts[0], last: parts[parts.length - 1] } : null
 }
 
+/** One raw Hunter GET (also used by the MCP `hunter` tool). null when Hunter can't be reached. */
+export async function hunterFetch(path: string, params: Record<string, string>): Promise<Response | null> {
+  const url = `${BASE}/${path}?${new URLSearchParams({ ...params, api_key: process.env.HUNTER_API_KEY! })}`
+  return fetch(url, { signal: AbortSignal.timeout(30_000) }).catch(() => null)
+}
+
 type E = { value?: string | null; email?: string | null; type?: string; confidence?: number; score?: number; first_name?: string | null; last_name?: string | null; position?: string | null; verification?: { status?: string } | null }
 
 /** One Hunter request. null on a miss or an error; flags the meter when the credits are used up. */
 async function ask(path: string, params: Record<string, string>, meter?: UsageMeter): Promise<E | null> {
   if (meter?.hunterOut) return null
-  const url = `${BASE}/${path}?${new URLSearchParams({ ...params, api_key: process.env.HUNTER_API_KEY! })}`
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) }).catch(() => null)
+  const res = await hunterFetch(path, params)
   if (res?.status === 429) {
     if (meter) meter.hunterOut = true
     console.error('[hunter] usage limit reached: no credits left this period')

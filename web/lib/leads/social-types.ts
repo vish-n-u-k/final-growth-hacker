@@ -20,6 +20,7 @@ export interface SocialCheck {
   accounts: SocialAccount[]
   lastPostAt: string | null       // newest post found on Instagram or Facebook
   lastPostOn: SocialPlatform | null
+  bioEmail?: string | null        // an email in their Instagram bio or business contact, when it shows one
 }
 
 export const INACTIVE_DAYS = 90

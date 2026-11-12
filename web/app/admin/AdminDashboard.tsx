@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { analysisRequests } from '@/lib/db/schema'
 import type { AnalysisMode } from '@/lib/modules/analysis-mode'
+import { ASK_REQUEST_NAME, REVIEW_REQUEST_NAME, type QueuedJob } from '@/lib/ask/types'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
 import AdminCosts from './AdminCosts'
 
@@ -36,6 +37,8 @@ interface Props {
   gmailAddress: string | null
   gmailParam?: string
   analysisMode: AnalysisMode
+  askMode: AnalysisMode
+  viaClaudeCode: boolean   // this copy of the app runs AI through the Claude Code CLI (USE_CLAUDE_CLI=true)
   earlyAccess: string[]
 }
 
@@ -55,7 +58,7 @@ interface SendResult {
   skipped?: string
 }
 
-export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam, analysisMode, earlyAccess: initialEarlyAccess }: Props) {
+export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam, analysisMode, askMode: initialAskMode, viaClaudeCode, earlyAccess: initialEarlyAccess }: Props) {
   const [mode, setMode] = useState<AnalysisMode>(analysisMode)
   const [modeSaving, setModeSaving] = useState(false)
   const [modeError, setModeError] = useState<string | null>(null)
@@ -71,6 +74,24 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
       setModeError(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setModeSaving(false)
+    }
+  }
+  // Ask's own switch: its AI work through the API, or queued here for you to run
+  const [askMode, setAskMode] = useState<AnalysisMode>(initialAskMode)
+  const [askSaving, setAskSaving] = useState(false)
+  const [askError, setAskError] = useState<string | null>(null)
+  const changeAskMode = async (next: AnalysisMode) => {
+    setAskSaving(true)
+    setAskError(null)
+    try {
+      const res = await fetch('/api/admin/analysis-mode', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: next, target: 'ask' }) })
+      const data = await res.json().catch(() => ({})) as { mode?: AnalysisMode; error?: string }
+      if (!res.ok || !data.mode) throw new Error(data.error ?? `Save failed (${res.status})`)
+      setAskMode(data.mode)
+    } catch (e) {
+      setAskError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setAskSaving(false)
     }
   }
   const [tab, setTab] = useState<'queue' | 'users' | 'notes' | 'costs' | 'access'>('queue')
@@ -173,15 +194,22 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
     setRunning(prev => ({ ...prev, [req.id]: true }))
     setErrors(prev => ({ ...prev, [req.id]: '' }))
     try {
-      const res = await fetch('/api/modules/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ moduleId: req.moduleId }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setErrors(prev => ({ ...prev, [req.id]: (data as { error?: string }).error ?? 'Analysis failed.' }))
-        return
+      if (req.moduleName === ASK_REQUEST_NAME) {
+        // Ask's queued questions and searches (moduleId is the brand id), run a batch at a time
+        const r = await fetch('/api/ask/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'run', brandId: req.moduleId }) })
+        const d = await r.json().catch(() => ({})) as { ran?: number; remaining?: number; error?: string }
+        if (!r.ok) { setErrors(prev => ({ ...prev, [req.id]: d.error ?? 'Run failed.' })); return }
+        if (d.remaining) { setErrors(prev => ({ ...prev, [req.id]: `Ran ${d.ran}. ${d.remaining} still waiting: press Run again.` })); return }
+      } else {
+        // An Ask website review (moduleId is the brand id, Claude reads the site), or a module
+        const res = req.moduleName === REVIEW_REQUEST_NAME
+          ? await fetch('/api/ask/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'run', brandId: req.moduleId }) })
+          : await fetch('/api/modules/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ moduleId: req.moduleId }) })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          setErrors(prev => ({ ...prev, [req.id]: (data as { error?: string }).error ?? 'Analysis failed.' }))
+          return
+        }
       }
       // Mark done in DB + send notification email
       await fetch('/api/admin/requests', {
@@ -265,6 +293,29 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
               {modeSaving ? 'Saving…' : mode === 'direct' ? 'Switch to queue' : 'Switch to API'}
             </button>
             {modeError && <span style={{ flexBasis: '100%', color: '#f87171', fontSize: 12 }}>{modeError}</span>}
+          </div>
+
+          {/* How Ask's AI work runs (questions, lead searches, website reviews): lib/ask/queue.ts */}
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '12px 16px', borderRadius: 8, background: 'var(--card, #122620)', border: '1px solid var(--line, #1e3830)', marginBottom: 12, fontSize: 13 }}>
+            <span style={{ color: 'var(--text-dim, #8aa897)' }}>Ask AI:</span>
+            <span style={{ fontWeight: 600 }}>
+              {askMode === 'direct' ? 'Run straight away through the API' : 'Queued here for you to run'}
+            </span>
+            <button
+              type="button"
+              disabled={askSaving}
+              onClick={() => changeAskMode(askMode === 'direct' ? 'queue' : 'direct')}
+              style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--line, #1e3830)', borderRadius: 6, color: 'inherit', fontFamily: 'inherit', fontSize: 12, padding: '5px 12px', cursor: 'pointer' }}
+            >
+              {askSaving ? 'Saving…' : askMode === 'direct' ? 'Switch to queue' : 'Switch to API'}
+            </button>
+            <span style={{ flexBasis: '100%', color: 'var(--text-dim, #8aa897)', fontSize: 12 }}>Questions, lead searches and website reviews in Ask. Writing emails always runs straight away.</span>
+            <span style={{ flexBasis: '100%', fontSize: 12, color: viaClaudeCode ? 'var(--green, #2fbf71)' : 'var(--text-dim, #8aa897)' }}>
+              {viaClaudeCode
+                ? 'Run Analysis here uses Claude Code on this computer (your plan, not API credit).'
+                : 'Run Analysis here uses the API. To use Claude Code, run the app on your computer with USE_CLAUDE_CLI=true and press Run there.'}
+            </span>
+            {askError && <span style={{ flexBasis: '100%', color: '#f87171', fontSize: 12 }}>{askError}</span>}
           </div>
 
           {/* Gmail connection status */}
@@ -351,9 +402,10 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
                       </td>
                       <td style={{ padding: '10px 12px' }}>
                         <span>{req.moduleName}</span>
-                        <a href={`/dashboard/${req.moduleId}`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--green, #2fbf71)', textDecoration: 'none' }}>
+                        {req.moduleName === ASK_REQUEST_NAME && <AskJobs brandId={req.moduleId} />}
+                        {req.moduleName !== REVIEW_REQUEST_NAME && req.moduleName !== ASK_REQUEST_NAME && <a href={`/dashboard/${req.moduleId}`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--green, #2fbf71)', textDecoration: 'none' }}>
                           View module
-                        </a>
+                        </a>}
                       </td>
                       <td style={{ padding: '10px 12px', color: 'var(--text-dim, #8aa897)' }}>{timeAgo(req.requestedAt)}</td>
                       <td style={{ padding: '10px 12px' }}>
@@ -697,5 +749,28 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
         </section>
       )}
     </div>
+  )
+}
+
+/** What an Ask request is waiting on: the questions and searches, oldest first (opened on click). */
+function AskJobs({ brandId }: { brandId: string }) {
+  const [jobs, setJobs] = useState<QueuedJob[] | null>(null)
+  const [open, setOpen] = useState(false)
+  async function toggle() {
+    setOpen(o => !o)
+    if (!jobs) {
+      const d = await fetch(`/api/ask/queue?brandId=${brandId}`).then(r => r.json()).catch(() => ({ jobs: [] })) as { jobs?: QueuedJob[] }
+      setJobs((d.jobs ?? []).filter(j => j.status === 'waiting').reverse())
+    }
+  }
+  return (
+    <span style={{ display: 'block', fontSize: 11 }}>
+      <button type="button" onClick={toggle} style={{ background: 'none', border: 0, padding: 0, color: 'var(--green, #2fbf71)', cursor: 'pointer', fontSize: 11 }}>{open ? 'Hide what’s waiting' : 'See what’s waiting'}</button>
+      {open && (
+        <span style={{ display: 'block', marginTop: 4, color: 'var(--text-dim, #8aa897)' }}>
+          {!jobs ? 'Loading…' : !jobs.length ? 'Nothing waiting.' : jobs.map(j => <span key={j.id} style={{ display: 'block' }}>• {j.kind === 'question' ? `“${j.question}”` : j.question}</span>)}
+        </span>
+      )}
+    </span>
   )
 }

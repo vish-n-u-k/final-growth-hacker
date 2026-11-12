@@ -32,7 +32,7 @@ export default function SignupPage() {
       setConfirming(true)
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      router.push('/start')
       router.refresh()
     }
   }

@@ -5,7 +5,7 @@ import { and, eq, ne, isNotNull } from 'drizzle-orm'
 import { detectEmailDns, detectMetaAds, detectLaunchedCampaigns } from '@/lib/signals/detectors'
 import { detectSearchChanges } from '@/lib/signals/search-detectors'
 import { runDiagnosis } from '@/lib/daily/diagnosis'
-import { recordBrandHistory } from '@/lib/history'
+import { recordBrandHistory, yesterdayUtc } from '@/lib/history'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   // History first (cheap, DB only) so slow detector / diagnosis jobs can't crowd it
   // out. Runs just after 00:00 UTC, so it records the day that just ended.
-  const historyDate = new Date(started - 86_400_000).toISOString().slice(0, 10)
+  const historyDate = yesterdayUtc(started)
   const allBrands = await db.select({ id: brands.id }).from(brands)
   let historyRecorded = 0
   const historyErrors: string[] = []
@@ -42,6 +42,8 @@ export async function GET(req: NextRequest) {
       historyErrors.push(`${b.id}: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
+  // Shows in the Vercel logs: before, a failing save was only in the cron's JSON answer
+  if (historyErrors.length) console.error(`[history] ${historyDate}: ${historyRecorded} saved, ${historyErrors.length} failed`, historyErrors.slice(0, 5))
 
   const jobs: Job[] = []
 

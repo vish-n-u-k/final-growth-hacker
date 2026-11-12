@@ -1,15 +1,23 @@
 import { callAI } from '@/lib/ai/client'
 import { FOUNDATION_MODULE } from './definition'
-import { getAllItems, type ModuleAnalysisResult } from '../types'
+import { getAllItems, itemFits, type ModuleAnalysisResult } from '../types'
 import type { FoundationFetchResult } from './fetcher'
 import { runFoundationRuleEngine } from './rule-engine'
+import { checkGoogleProfile, GBP_SLUG, type FoundationBrand } from './google-profile'
 
 export async function analyzeFoundation(
   data: FoundationFetchResult,
   gscMeta: Record<string, string> = {},
+  brand: FoundationBrand = {},
 ): Promise<{ brandColor: string; results: ModuleAnalysisResult[] }> {
   // Run rule engine — decides pass/fail for 13 of 15 items
   const { results: ruleResults, aiSlugs } = runFoundationRuleEngine(data, gscMeta)
+
+  // Google Business Profile: only for brands the check applies to (its relevantFor)
+  const gbpItem = getAllItems(FOUNDATION_MODULE).find(i => i.slug === GBP_SLUG)
+  const gbpPromise = gbpItem && itemFits(gbpItem, brand.websiteType) && data.extracted
+    ? checkGoogleProfile(data, brand)
+    : null
 
   if (!data.extracted) {
     return { brandColor: '', results: ruleResults }
@@ -103,6 +111,7 @@ No markdown, no text outside the JSON.`,
       }
     ),
   ]
+  if (gbpPromise) allResults.push(await gbpPromise)
 
   return { brandColor, results: allResults }
 }

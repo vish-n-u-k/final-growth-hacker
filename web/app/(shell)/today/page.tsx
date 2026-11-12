@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { sendToAskIfHome } from '@/lib/ask/home'
 import { hasEarlyAccess } from '@/lib/early-access'
 import { blogMarkdownUrl } from '@/lib/blog-share'
 import { createClient } from '@/lib/supabase/server'
@@ -19,6 +20,7 @@ const DEFAULT_BLOG_LIMIT = 10
 export const dynamic = 'force-dynamic'
 
 export default async function TodayPage() {
+  await sendToAskIfHome()   // Ask is home for early access (lib/features.ts askIsHome)
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   const user = session?.user

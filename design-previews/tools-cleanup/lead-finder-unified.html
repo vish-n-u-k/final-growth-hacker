@@ -1,0 +1,428 @@
+<title>One-Funnel Lead Finder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: the app frame (sidebar + one quiet column). One green button per screen = the next step. Red = a reply. Everything else grey. */
+  :root {
+    --bg: #ffffff; --soft: #f3f5f3; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --red: #b42318; --red-soft: #fdeceb;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button, input, textarea { font: inherit; color: inherit; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  .frame { display: flex; min-height: 100vh; }
+  .side { width: 232px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 4px 8px 20px; font: 600 16px var(--display); }
+  .grp { margin-bottom: 18px; }
+  .gl { padding: 0 10px 6px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .nav { display: block; padding: 7px 10px; border-radius: 8px; color: var(--dim); text-decoration: none; }
+  .nav.on { background: var(--green-soft); color: var(--green-ink); font-weight: 600; }
+  .main { flex: 1; min-width: 0; }
+  .page { max-width: 880px; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); margin: 0 auto; }
+  .mbar { display: none; }
+  @media (max-width: 760px) {
+    .side { display: none; }
+    .mbar { display: flex; align-items: center; gap: 9px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--soft); font: 600 15px var(--display); }
+    .page { padding-block: 18px 56px; }
+  }
+
+  .crumbs { font-size: 13px; color: var(--faint); margin-bottom: 18px; }
+  h1 { margin: 0; font: 600 32px/1.15 var(--display); letter-spacing: -.01em; text-wrap: balance; }
+  .line { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 14px; color: var(--faint); }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; font-size: inherit; }
+  .link:hover { color: var(--text); text-decoration-color: currentColor; }
+
+  .tabs { display: flex; gap: 4px; margin: 28px 0 22px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .tab { padding: 10px 14px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; font-size: 15px; color: var(--faint); cursor: pointer; white-space: nowrap; }
+  .tab[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--text); }
+  .tab .n { margin-left: 6px; font-size: 13px; color: var(--faint); font-weight: 500; }
+
+  .next { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px 22px; border-radius: 14px; background: var(--green-soft); }
+  .next-text { flex: 1 1 260px; min-width: 0; }
+  .next-text b { display: block; font-size: 17px; font-weight: 600; }
+  .next-text span { color: var(--dim); font-size: 14px; }
+  .btn { height: 42px; padding: 0 20px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.go:hover { filter: brightness(1.06); }
+  .btn.quiet { border-color: transparent; background: none; color: var(--dim); padding: 0 12px; }
+  .btn.quiet:hover { color: var(--text); }
+
+  .replied { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 12px 16px; border-radius: 12px; background: var(--red-soft); cursor: pointer; font-size: 14.5px; }
+  .replied b { font-weight: 600; }
+  .replied span { color: var(--dim); }
+
+  .rest { margin-top: 26px; }
+  .rest-h { margin: 0 0 6px; font-size: 13px; color: var(--faint); }
+  .row { display: flex; align-items: center; gap: 14px; padding: 14px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .row:hover .row-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .row-main { flex: 1; min-width: 0; }
+  .row-name { font-weight: 600; }
+  .row-name small { font-weight: 400; color: var(--faint); font-size: 13.5px; margin-left: 6px; }
+  .row-why { color: var(--dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-src { color: var(--faint); font-size: 13px; white-space: nowrap; text-align: right; }
+  .row-src i { display: block; font-style: normal; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
+  .more { margin-top: 18px; font-size: 14px; color: var(--faint); display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .empty { padding: 36px 22px; border-radius: 14px; background: var(--soft); text-align: center; }
+  .empty b { display: block; font-size: 17px; margin-bottom: 4px; }
+  .empty p { margin: 0 auto 16px; color: var(--dim); max-width: 52ch; }
+
+  /* One lead opened: the same card for every source */
+  .back { margin-bottom: 20px; }
+  .open { display: grid; grid-template-columns: minmax(0, 290px) minmax(0, 1fr); gap: 32px; align-items: start; }
+  .who h2 { margin: 0 0 2px; font: 600 22px/1.25 var(--display); }
+  .who .role { font-size: 14px; color: var(--dim); }
+  .who .why { margin: 16px 0 0; font-size: 14.5px; }
+  .facts { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 14px; }
+  .facts li { display: grid; grid-template-columns: 18px 1fr; gap: 6px; color: var(--dim); }
+  .facts li::before { content: "✓"; color: var(--faint); }
+  .facts li b { color: var(--text); font-weight: 500; }
+  .from { margin-top: 18px; padding: 12px 14px; border-radius: 12px; background: var(--soft); font-size: 13.5px; color: var(--dim); display: grid; gap: 4px; }
+  .from b { color: var(--text); font-weight: 500; }
+  .step-of { font-size: 13px; color: var(--faint); margin-bottom: 6px; }
+  .step h3 { margin: 0 0 6px; font: 600 24px/1.25 var(--display); }
+  .step .hint { margin: 0 0 18px; color: var(--dim); font-size: 14px; }
+  .mail { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .mail label { display: flex; gap: 12px; align-items: center; padding: 0 14px; min-height: 44px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .mail label span { width: 56px; color: var(--faint); flex: none; }
+  .mail input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 14.5px; }
+  .mail textarea { display: block; width: 100%; min-height: 210px; padding: 14px; border: 0; background: none; resize: vertical; outline: none; font-size: 14.5px; line-height: 1.65; }
+  .acts { display: flex; align-items: center; gap: 8px; margin-top: 22px; flex-wrap: wrap; }
+  .acts .btn.go { margin-left: auto; }
+  .note { margin-top: 10px; font-size: 13px; color: var(--faint); }
+  .quote { margin: 0 0 16px; padding: 12px 14px; border-left: 2px solid var(--red); background: var(--red-soft); border-radius: 0 10px 10px 0; font-size: 14.5px; }
+  @media (max-width: 760px) { .open { grid-template-columns: 1fr; gap: 22px; } }
+
+  /* Settings and the side views */
+  .sheet { margin-top: 22px; padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; }
+  .sheet + .sheet { margin-top: 14px; }
+  .sheet h3 { margin: 0 0 4px; font-size: 16px; }
+  .sheet > p { margin: 0 0 10px; color: var(--faint); font-size: 13.5px; }
+  .opt { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; font-size: 14.5px; border-top: 1px solid var(--line); }
+  .opt:first-of-type { border-top: 0; }
+  .opt input[type="checkbox"] { margin-top: 4px; accent-color: var(--green); }
+  .opt small { display: block; color: var(--faint); font-size: 13px; }
+  .card-text { font-size: 14.5px; color: var(--dim); }
+  .card-text b { color: var(--text); font-weight: 500; }
+
+  /* How it works: sources pour into one funnel */
+  .srcs { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 8px; }
+  .srcs span { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); font-size: 13.5px; color: var(--dim); }
+  .srcs span small { color: var(--faint); }
+  .into { margin: 4px 0 14px 18px; color: var(--faint); font-size: 13px; }
+  .funnel { list-style: none; margin: 0; padding: 0; counter-reset: s; display: grid; gap: 0; }
+  .funnel > li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding: 16px 0; border-top: 1px solid var(--line); }
+  .funnel > li::before { content: counter(s); width: 28px; height: 28px; border-radius: 50%; background: var(--soft); color: var(--dim); display: grid; place-items: center; font-weight: 600; font-size: 13.5px; }
+  .funnel h4 { margin: 2px 0 4px; font-size: 15.5px; }
+  .funnel p { margin: 0; color: var(--dim); font-size: 14px; max-width: 64ch; }
+  .funnel ol { margin: 8px 0 0; padding-left: 20px; color: var(--dim); font-size: 14px; display: grid; gap: 3px; }
+  .funnel ol small { color: var(--faint); }
+  .tag { display: inline-block; margin-left: 6px; font-size: 12px; color: var(--faint); }
+
+  .toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 14px; z-index: 20; max-width: calc(100% - 32px); }
+  .toast button { margin-left: 10px; border: 0; background: none; color: var(--bg); font-weight: 600; text-decoration: underline; cursor: pointer; }
+  @media (prefers-reduced-motion: no-preference) { .row, .btn { transition: background .15s, color .15s; } }
+</style>
+
+<div class="frame">
+  <nav class="side" aria-label="Main">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none"/><circle cx="20" cy="7.5" r="2.4" fill="#FF6A50"/></svg>GrowJin</div>
+    <div class="grp"><a class="nav" href="#">Today</a></div>
+    <div class="grp"><div class="gl">Get customers</div><a class="nav on" href="#">Lead Finder</a><a class="nav" href="#">Lead Agent</a><a class="nav" href="#">Email Outreach</a></div>
+    <div class="grp"><div class="gl">Get seen</div><a class="nav" href="#">Search Agent</a><a class="nav" href="#">Social Studio</a></div>
+    <div class="grp"><div class="gl">Keep track</div><a class="nav" href="#">Reminders</a><a class="nav" href="#">Analytics</a></div>
+  </nav>
+  <main class="main">
+    <div class="mbar"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none"/></svg>GrowJin</div>
+    <div class="page" id="view"></div>
+  </main>
+</div>
+<div id="toast"></div>
+
+<script>
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+
+// Example leads, made up for the preview. Every source ends up in the same shape.
+const LEADS = [
+  { id: 'moss', person: 'Lena Ortiz', role: 'Founder', company: 'Moss & Wick Candles', site: 'mossandwick.com', score: 9,
+    why: 'Small candle shop that sells on its own site and last posted on Instagram 4 months ago.',
+    src: 'Google search', srcLong: 'Google search “soy candles” “small batch” (DataForSEO)',
+    facts: [['Sells', 'hand-poured soy candles, 42 products'], ['Size', 'about 3,000 visits a month'], ['Active', 'newest product 9 days ago'], ['Marketing', 'the founder does it, no team or creators'], ['Social', 'Instagram, last post 4 months ago']],
+    via: 'email', to: 'lena@mossandwick.com', how: 'Hunter, from her name (checked)',
+    subject: 'Instagram posts for Moss & Wick',
+    body: 'Hi Lena,\n\nI saw your new fig and cedar candle. It deserves more than the shop page: your Instagram has been quiet since June.\n\nFrekto turns your product photos into ready-to-post Instagram posts in a few minutes, in your shop\'s style.\n\nWant me to make three from your fig and cedar listing so you can see them? No sign-up needed.\n\nVishnu, Frekto' },
+  { id: 'tally', person: 'Raj Mehta', role: 'Co-founder', company: 'Tallyform', site: 'tallyform.io', score: 8,
+    why: 'Two-person form builder; the founder posts on X himself, nothing on Instagram or LinkedIn.',
+    src: 'LinkedIn', srcLong: 'LinkedIn people search: founders, SaaS, 1-10 people (Apify)',
+    facts: [['Sells', 'a form builder for small teams'], ['Size', '2 people, about 6,000 visits a month'], ['Active', 'blog post 12 days ago'], ['Marketing', 'the founder posts on X himself'], ['Social', 'X active, no Instagram']],
+    via: 'email', to: 'raj@tallyform.io', how: 'came with the LinkedIn record (checked)',
+    subject: 'Tallyform on social, without the time',
+    body: 'Hi Raj,\n\nYou post about Tallyform on X yourself, and it shows: the launch thread did well. There\'s nothing on Instagram or LinkedIn yet.\n\nFrekto makes those posts from what you already write, so the same news reaches more places without more of your evenings.\n\nShall I turn your last launch thread into three LinkedIn posts so you can judge?\n\nVishnu, Frekto' },
+  { id: 'fox', person: 'Paper Fox Prints', role: 'Etsy shop', company: 'Paper Fox Prints', site: 'etsy.com/shop/PaperFoxPrints', score: 8,
+    why: 'Etsy print shop with 1,200 sales and an Instagram that posts once a month.',
+    src: 'Etsy', srcLong: 'Google search site:etsy.com/shop “art prints” (DataForSEO)',
+    facts: [['Sells', 'botanical art prints on Etsy, 1,200 sales'], ['Size', 'one-person shop'], ['Active', 'new listing last week'], ['Marketing', 'does it herself'], ['Social', 'Instagram, about one post a month']],
+    via: 'dm', to: 'Instagram @paperfoxprints', how: 'no email anywhere, so a message on Instagram',
+    body: 'Hi! Love the fern prints. Your Instagram only gets a post a month, which is a shame for work this good. I make Frekto, which turns Etsy listings into ready Instagram posts. Want three made from your fern set, free, to see if they\'re any good?' },
+  { id: 'later', person: 'Tom Becker', role: 'Owner', company: 'Becker Bike Works', site: 'beckerbikes.co.uk', score: 7,
+    why: 'Gave Later 2 stars: “too fiddly to make the posts in the first place”.',
+    src: 'Competitor review', srcLong: '2★ review of Later on Trustpilot, 3 weeks ago',
+    facts: [['Sells', 'bike repairs and refurbished bikes'], ['Size', 'one shop, about 900 visits a month'], ['Active', 'Google reviews this month'], ['Marketing', 'does it himself'], ['Social', 'Facebook, last post 2 months ago']],
+    via: 'email', to: 'tom@beckerbikes.co.uk', how: 'Hunter, owner at beckerbikes.co.uk',
+    subject: 'Your Later review',
+    body: 'Hi Tom,\n\nI read your Later review: scheduling was fine, making the posts was the problem. That\'s exactly the part Frekto does.\n\nYou give it a photo of a refurbished bike and it writes and designs the post for Facebook and Instagram.\n\nWant me to make a couple from bikes you\'ve sold recently, so you can see?\n\nVishnu, Frekto' },
+  { id: 'leaf', person: 'Greenleaf Tea House', role: 'Tea shop', company: 'Greenleaf Tea House', site: 'greenleaftea.com', score: 7,
+    why: 'Independent tea shop with a web store; no social accounts linked anywhere.',
+    src: 'Google Maps', srcLong: 'Google Maps “tea shop” in Leeds (DataForSEO)',
+    facts: [['Sells', 'loose-leaf tea, in the shop and online'], ['Size', 'one shop'], ['Active', 'new blend added this month'], ['Marketing', 'no one named'], ['Social', 'no accounts found']],
+    via: 'email', to: 'hello@greenleaftea.com', how: 'their contact page (no named person found)',
+    subject: 'Greenleaf on Instagram',
+    body: 'Hello,\n\nYour new autumn blend looks lovely, but I couldn\'t find Greenleaf on Instagram or Facebook, where most tea lovers look.\n\nFrekto makes ready-to-post photos and captions from your product pages, so starting costs you minutes, not hours.\n\nWould whoever looks after the shop like three free posts made from the autumn blend?\n\nVishnu, Frekto' },
+]
+const REPLY = { person: 'Mark Ellis', company: 'Kiln & Clay', said: 'Sounds interesting. What does it cost for a shop like ours, and can it post for us too?', src: 'LinkedIn' }
+const MAYBE = [
+  ['Northwind Analytics', 'Google search', 'Their buyers aren’t reached on social media'],
+  ['Bloom & Co Florists', 'Google Maps', 'Has a marketing agency'],
+  ['Studio Haus', 'LinkedIn', 'Looks too big: 140 people'],
+  ['Wax Lyrical (Etsy)', 'Etsy', 'No new listing in 8 months'],
+]
+
+let state = { view: 'list', tab: 'direct', open: null, done: [] }
+const todo = () => LEADS.filter(l => !state.done.includes(l.id))
+const $view = document.getElementById('view')
+
+function header() {
+  return `
+    <div class="crumbs">Tools / Get customers</div>
+    <h1>Lead Finder</h1>
+    <div class="line">
+      <span>Last search 2 h ago</span>
+      <button class="link" data-go="how">How it finds people</button>
+      <button class="link" data-go="settings">Settings</button>
+      <button class="link" data-act="search">Find more</button>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="${state.tab === 'direct'}" data-tab="direct">Contact directly<span class="n">${todo().length}</span></button>
+      <button class="tab" role="tab" aria-selected="${state.tab === 'community'}" data-tab="community">Join conversations</button>
+    </div>`
+}
+
+function listView() {
+  if (state.tab === 'community') return header() + `
+    <div class="empty"><b>Parked for now</b><p>Reddit and Hacker News posts asking for a tool like yours will live here. They work as before on the Lead Agent page.</p></div>`
+  const left = todo()
+  const reply = `<div class="replied" data-go="reply"><span class="dot"></span><div><b>${REPLY.person} at ${REPLY.company} replied.</b> <span>“${esc(REPLY.said.slice(0, 48))}…”</span></div></div>`
+  if (!left.length) return header() + reply + `
+    <div class="empty"><b>All caught up</b><p>Every lead is sent or skipped. The next search runs tomorrow morning.</p><button class="btn go" data-act="search">Find more now</button></div>`
+  const [first, ...rest] = left
+  const verb = first.via === 'dm' ? 'Write the message' : 'Review the email'
+  return header() + reply + `
+    <div class="next">
+      <div class="next-text"><b>${left.length} people ready for your OK</b><span>Start with ${esc(first.person === first.company ? first.company : first.person + ' at ' + first.company)}. ${esc(first.why)}</span></div>
+      <button class="btn go" data-open="${first.id}">${verb} →</button>
+    </div>
+    <div class="rest">
+      <p class="rest-h">Also ready</p>
+      ${rest.map(row).join('')}
+    </div>
+    <div class="more">
+      <button class="link" data-act="search">Show 10 more</button>
+      <button class="link" data-go="maybe">Checked but not kept (${MAYBE.length})</button>
+      <span>${state.done.length + 6} sent or skipped</span>
+    </div>`
+}
+
+function row(l) {
+  const name = l.person === l.company ? esc(l.company) : `${esc(l.person)}<small>${esc(l.company)}</small>`
+  return `<div class="row" data-open="${l.id}" tabindex="0">
+    <div class="row-main"><div class="row-name">${name}</div><div class="row-why">${esc(l.why)}</div></div>
+    <div class="row-src">from ${esc(l.src)}<i>${l.via === 'dm' ? 'message' : 'email'}</i></div>
+  </div>`
+}
+
+function leadView() {
+  const l = LEADS.find(x => x.id === state.open)
+  const dm = l.via === 'dm'
+  return `
+    <button class="link back" data-go="list">← All leads</button>
+    <div class="open">
+      <div class="who">
+        <h2>${esc(l.person === l.company ? l.company : l.person)}</h2>
+        <div class="role">${esc(l.person === l.company ? l.role : l.role + ', ' + l.company)} · ${esc(l.site)}</div>
+        <p class="why">${esc(l.why)}</p>
+        <ul class="facts">${l.facts.map(([k, v]) => `<li><span><b>${k}:</b> ${esc(v)}</span></li>`).join('')}</ul>
+        <div class="from">
+          <span><b>Found through</b> ${esc(l.srcLong)}</span>
+          <span><b>${dm ? 'Contact' : 'Email'}</b> ${esc(l.how)}</span>
+          <span><b>Fit</b> ${l.score}/10</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-of">${dm ? 'A direct message' : 'An email'} for your OK</div>
+        <h3>${dm ? 'Check the message' : 'Check the email'}</h3>
+        <p class="hint">${dm ? 'Copy it, open their page and send it yourself. Then tell us you sent it.' : 'Sent from your Gmail. Two follow-ups go out if they don’t reply, and stop when they do.'}</p>
+        ${dm ? `
+          <div class="mail"><label><span>To</span><input id="to-${l.id}" value="${esc(l.to)}" readonly></label><textarea id="body-${l.id}">${esc(l.body)}</textarea></div>
+          <div class="acts"><button class="btn quiet" data-act="skip">Skip</button><button class="btn" data-act="copy">Copy message</button><button class="btn" data-act="openpage">Open their Instagram</button><button class="btn go" data-act="send">I’ve sent it</button></div>` : `
+          <div class="mail">
+            <label><span>To</span><input id="to-${l.id}" value="${esc(l.to)}"></label>
+            <label><span>Subject</span><input id="sub-${l.id}" value="${esc(l.subject)}"></label>
+            <textarea id="body-${l.id}">${esc(l.body)}</textarea>
+          </div>
+          <div class="acts"><button class="btn quiet" data-act="skip">Skip</button><button class="btn quiet" data-act="redo">Write again</button><button class="btn go" data-act="send">Approve and send</button></div>`}
+      </div>
+    </div>`
+}
+
+function replyView() {
+  return `
+    <button class="link back" data-go="list">← All leads</button>
+    <div class="open">
+      <div class="who">
+        <h2>${REPLY.person}</h2><div class="role">Owner, ${REPLY.company} · kilnandclay.com</div>
+        <div class="from"><span><b>Found through</b> LinkedIn people search (Apify)</span><span><b>Emailed</b> 4 days ago, follow-ups now stopped</span></div>
+      </div>
+      <div class="step">
+        <div class="step-of">They replied · wants to know the price</div>
+        <h3>Reply while it’s warm</h3>
+        <blockquote class="quote">${esc(REPLY.said)}</blockquote>
+        <div class="mail"><textarea id="reply-body">Hi Mark,\n\nGreat question. For one shop it\'s $19 a month, and yes, it can post for you on a schedule you pick.\n\nWant me to set up a free week with your pottery photos so you can see it work?\n\nVishnu</textarea></div>
+        <div class="acts"><button class="btn quiet" data-go="list">Later</button><button class="btn go" data-act="replysent">Send reply</button></div>
+      </div>
+    </div>`
+}
+
+function settingsView() {
+  const src = [
+    ['Google search and websites', 'Small shops and businesses found through Google, store platforms and sites like your customers. DataForSEO.', true],
+    ['LinkedIn people', 'Founders and marketing leads by job title, industry and size. Apify. Comes with a checked email.', true],
+    ['Etsy and Instagram shops', 'Sellers with only a marketplace or social page. You message them there.', true],
+    ['Google Maps', 'Local businesses. Off: your customers mostly sell online.', false],
+    ['Competitor reviewers', 'Unhappy reviewers of Later and Canva on Trustpilot.', true],
+  ]
+  return `
+    <button class="link back" data-go="list">← All leads</button>
+    <h1>Settings</h1>
+    <div class="sheet">
+      <h3>Who you’re looking for</h3>
+      <p>Every source is checked against this card.</p>
+      <div class="card-text"><b>Small online shops</b> that make their own products and do their own marketing. A good sign: they <b>haven’t posted on social for months</b>. Not a fit: agencies, big brands, shops with a marketing team.</div>
+      <div class="acts" style="margin-top:12px"><button class="btn">Edit the card</button></div>
+    </div>
+    <div class="sheet">
+      <h3>Where to look</h3>
+      <p>Where a lead comes from only shows as a grey tag. They all go through the same checks.</p>
+      ${src.map(([t, s, on], i) => `<label class="opt"><input type="checkbox" id="src-${i}" ${on ? 'checked' : ''}><span>${t}<small>${s}</small></span></label>`).join('')}
+    </div>
+    <div class="sheet">
+      <h3>Sending</h3>
+      <label class="opt"><span>Gmail: vishnu@frekto.com<small>Up to 20 new emails a day, follow-ups after 3 and 7 days.</small></span></label>
+      <label class="opt"><input type="checkbox" id="demo"><span>Demo mode<small>Made-up leads, nothing is sent.</small></span></label>
+    </div>`
+}
+
+function maybeView() {
+  return `
+    <button class="link back" data-go="list">← All leads</button>
+    <h1>Checked but not kept</h1>
+    <div class="line"><span>Close to a fit, but one check failed. Use one anyway if you know better.</span></div>
+    <div class="rest">${MAYBE.map(([n, s, r], i) => `
+      <div class="row" style="cursor:default"><div class="row-main"><div class="row-name">${esc(n)}</div><div class="row-why">${esc(r)}</div></div>
+      <div class="row-src">from ${esc(s)}</div><button class="btn quiet" data-act="use" data-i="${i}">Use anyway</button></div>`).join('')}
+    </div>`
+}
+
+function howView() {
+  return `
+    <button class="link back" data-go="list">← All leads</button>
+    <h1>How it finds people</h1>
+    <div class="line"><span>Every source goes through the same steps, so every lead looks and reads the same.</span></div>
+    <div class="srcs">
+      <span>Google search and websites <small>DataForSEO</small></span>
+      <span>LinkedIn people <small>Apify</small></span>
+      <span>Etsy and Instagram shops <small>Google</small></span>
+      <span>Google Maps <small>DataForSEO</small></span>
+      <span>Competitor reviewers <small>Trustpilot, Shopify</small></span>
+      <span>Your own list <small>upload</small></span>
+    </div>
+    <div class="into">↓ all into one funnel</div>
+    <ol class="funnel">
+      <li><div><h4>Find</h4><p>Each source adds a company or a person. Repeats, people already emailed and people who opted out are dropped.</p></div></li>
+      <li><div><h4>Fill in <span class="tag">free</span></h4><p>Read their website: what they sell, how many products, newest product or post, who does their marketing, which social accounts they link. Size from DataForSEO visits, or LinkedIn headcount.</p></div></li>
+      <li><div><h4>Check</h4><p>One AI check against your card: right trade, small, active, needs it, does their own marketing, buyers reached on social, and the right person (owner, founder or marketing). It learns from what you approve and skip. Kept at 6 out of 10 or more; the rest go to “Checked but not kept”.</p></div></li>
+      <li><div><h4>Social check <span class="tag">about 1–2¢ each, only for the ones kept</span></h4><p>When they last posted on Instagram and Facebook (Apify). Not posting for 90 days counts in their favour when your card says so.</p></div></li>
+      <li><div><h4>Find the person and their email</h4><p>Stops at the first that works:</p>
+        <ol>
+          <li>An email that came with the lead <small>(LinkedIn record, business listing)</small></li>
+          <li>Hunter, from the person’s name <small>(1 credit if found)</small></li>
+          <li>Hunter, for the owner, founder or marketing person at their website</li>
+          <li>LinkedIn search for someone at that company <small>(Apify, comes with an email)</small></li>
+          <li>Names on their About or Team page, then Hunter for that name</li>
+          <li>A general address on their own site, like hello@ <small>(free)</small></li>
+          <li>An email in their Instagram or Facebook bio</li>
+          <li>No email: a direct message on their Instagram, Facebook or Etsy page</li>
+        </ol></div></li>
+      <li><div><h4>Write, you approve</h4><p>An email, or a short message when there’s no email. Nothing goes out until you approve. Same daily limit and follow-ups for everyone; follow-ups stop when they reply.</p></div></li>
+    </ol>`
+}
+
+function render() {
+  const v = state.view
+  $view.innerHTML = v === 'lead' ? leadView() : v === 'reply' ? replyView() : v === 'settings' ? settingsView() : v === 'maybe' ? maybeView() : v === 'how' ? howView() : listView()
+  window.scrollTo(0, 0)
+}
+
+let toastTimer
+function toast(msg, undo) {
+  const t = document.getElementById('toast')
+  t.innerHTML = `<div class="toast" role="status">${esc(msg)}${undo ? ' <button id="undo">Undo</button>' : ''}</div>`
+  if (undo) document.getElementById('undo').onclick = () => { undo(); t.innerHTML = ''; render() }
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.innerHTML = '' }, 4500)
+}
+
+function finish(msg) {
+  const id = state.open
+  state.done.push(id)
+  const next = todo()[0]
+  if (next) { state.open = next.id; state.view = 'lead' } else { state.view = 'list'; state.open = null }
+  render()
+  toast(next ? `${msg} Next up: ${next.person === next.company ? next.company : next.person}.` : `${msg} All caught up.`, () => { state.done = state.done.filter(x => x !== id); state.open = id; state.view = 'lead' })
+}
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-go],[data-open],[data-tab],[data-act]')
+  if (!el) return
+  if (el.dataset.tab) { state.tab = el.dataset.tab; render(); return }
+  if (el.dataset.open) { state.open = el.dataset.open; state.view = 'lead'; render(); return }
+  if (el.dataset.go) { state.view = el.dataset.go; render(); return }
+  const l = LEADS.find(x => x.id === state.open)
+  switch (el.dataset.act) {
+    case 'send': finish(l.via === 'dm' ? 'Marked as sent.' : `Sent to ${l.to}.`); break
+    case 'skip': finish('Skipped.'); break
+    case 'redo': toast('Writing a new version… (in the preview it stays the same)'); break
+    case 'copy': {
+      const text = document.getElementById(`body-${l.id}`).value
+      navigator.clipboard?.writeText(text).then(() => toast('Message copied.')).catch(() => { document.getElementById(`body-${l.id}`).select(); toast('Select and copy the message.') })
+      break
+    }
+    case 'openpage': toast('Opens instagram.com/paperfoxprints in a new tab.'); break
+    case 'replysent': state.view = 'list'; render(); toast('Reply sent to Mark.'); break
+    case 'use': toast(`${MAYBE[+el.dataset.i][0]} added to your leads.`); break
+    case 'search': toast('Searching all sources… (preview only)'); break
+  }
+})
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.row[data-open]')) e.target.click() })
+render()
+</script>

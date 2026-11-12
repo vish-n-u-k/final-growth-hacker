@@ -80,7 +80,7 @@ export default function Campaigns({ newPending, onNewOpened, notify, onSent }: {
         <h3>Start your first campaign</h3>
         <p>Paste a list of people and say what it&apos;s about. GrowJin writes each email and you check it before it goes.</p>
         <button type="button" className="btn btn-primary" onClick={() => setOpenId({ id: newId(), isNew: true })}>New campaign</button>
-        <p className="eo-find">No list yet? Find people with <Link className="th-link" href="/lead-finder">Competitor Leads</Link> or the <Link className="th-link" href="/agents/leads">Lead Agent</Link>.</p>
+        <p className="eo-find">No list yet? Find people with <Link className="th-link" href="/leads">Lead Finder</Link>.</p>
       </div>
     )
   }
@@ -581,7 +581,7 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
       )}
 
       {prospects.length === 0 && (
-        <p className="eo-find">Need people to email? Find them with <Link className="th-link" href="/lead-finder">Competitor Leads</Link> or the <Link className="th-link" href="/agents/leads">Lead Agent</Link>.</p>
+        <p className="eo-find">Need people to email? Find them with <Link className="th-link" href="/leads">Lead Finder</Link>.</p>
       )}
     </>
     actions = <>

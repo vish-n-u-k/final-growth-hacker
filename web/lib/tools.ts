@@ -20,16 +20,17 @@ export interface ToolGroup {
 export const TOOL_GROUPS: ToolGroup[] = [
   // Find people, then contact them: the two lead sources feed the same Gmail outreach
   { label: 'Get customers', items: [
+    // Lead Finder holds what Competitor Leads (/lead-finder) did; that address opens it
     { href: '/leads', label: 'Lead Finder', icon: 'people', pro: true, gmail: true,
-      desc: 'Finds people on Google Maps, in your competitors\' reviews and on Reddit, writes to them and follows up.' },
+      desc: 'Finds shops, Etsy and Instagram sellers, Reddit posts and your competitors\' unhappy customers every morning, writes to them and follows up.' },
     { href: '/agents/leads', label: 'Lead Agent', icon: 'bot', pro: true, gmail: true,
       desc: 'Finds people who need what you sell every day, emails them and follows up.' },
-    { href: '/lead-finder', label: 'Competitor Leads', icon: 'target', pro: true, gmail: true,
-      desc: "Scan a competitor's reviews for unhappy customers to email." },
     { href: '/gmail-hub', label: 'Email Outreach', icon: 'mail', lockedType: 'gmail-outreach', pro: true, gmail: true,
       desc: 'Spot leads in your Gmail, send campaigns and follow up.' },
   ]},
   { label: 'Get seen', items: [
+    { href: '/search-ai', label: 'Search & AI', icon: 'target', pro: true,
+      desc: 'Your Google rankings and AI answers week by week, which keywords to keep, change or drop, and what to write next.' },
     { href: '/agents/search', label: 'Search Agent', icon: 'search', pro: true,
       desc: 'Picks keywords you can win, writes posts, finds sites to get links from and tracks your Google and AI rank.' },
     { href: '/social', label: 'Social Studio', icon: 'image', pro: true,

@@ -94,7 +94,7 @@ export default function AgentsOverview({ search, lead, approvals, funnel, usage,
           desc="Picks keywords you can win, writes posts that beat the #1 result, finds sites that link to your competitors but not you, and tracks your Google rank and whether ChatGPT, Perplexity and Gemini recommend you."
         />
         <AgentCard
-          name="Lead Agent" when="Finds, emails and follows up · daily" href="/agents/leads" s={lead} icon={<LeadIcon />}
+          name="Lead Agent" when="Finds, emails and follows up · daily" href="/leads" s={lead} icon={<LeadIcon />}
           desc="Finds people asking for what you sell and unhappy competitor customers, gets a verified email, drafts a personal note, sends from your Gmail and follows up."
         />
       </div>

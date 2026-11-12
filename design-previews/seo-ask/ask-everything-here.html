@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ask: everything happens here</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Preview: no old pages. Every tool is a workspace that opens over Ask (right panel, full screen on phones).
+     Same look as ask-app-flow-v2: paper, ink, one blue for the next step, red only for replies. */
+  :root {
+    --page: #ecebe6; --bg: #f7f7f5; --card: #ffffff; --ink: #111111; --sub: #5f5f5a; --faint: #9a9a93; --line: #e6e5e0;
+    --blue: #3355ff; --blue-soft: #eef1ff; --blue-ink: #2238c4; --red: #e5484d; --red-soft: #fdecec; --grey: #d9d8d2; --grey2: #b4b3ac;
+    --font: 'Geist', system-ui, sans-serif; --mono: 'Geist Mono', ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --page: #08080a; --bg: #0e0e10; --card: #17171a; --ink: #f2f2f0; --sub: #a6a6a0; --faint: #6e6e69; --line: #2a2a2e;
+    --blue: #7b93ff; --blue-soft: #1b2142; --blue-ink: #a9b8ff; --red: #ff6b6b; --red-soft: #3a1d1f; --grey: #34343a; --grey2: #55555c; color-scheme: dark } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--page); color: var(--ink); font: 400 15px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+  /* storyboard chrome */
+  .story { position: sticky; top: 0; z-index: 20; background: var(--page); border-bottom: 1px solid var(--line); padding: max(12px, env(safe-area-inset-top, 0px)) 16px 12px; }
+  .story-in { max-width: 1320px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .stepbar { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; }
+  .stepbar::-webkit-scrollbar { display: none; }
+  .st { display: flex; align-items: center; gap: 7px; padding: 6px 12px 6px 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; cursor: pointer; white-space: nowrap; color: var(--sub); }
+  .st b { width: 20px; height: 20px; border-radius: 50%; background: var(--bg); display: grid; place-items: center; font: 500 11px var(--mono); color: var(--faint); }
+  .st[aria-current="step"] { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  .st[aria-current="step"] b { background: var(--card); color: var(--ink); }
+  .stage { max-width: 1320px; margin: 0 auto; padding: 18px 16px 60px; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+  @media (max-width: 1000px) { .stage { grid-template-columns: 1fr; } }
+  .how { position: sticky; top: 72px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px 18px 8px; }
+  @media (max-width: 1000px) { .how { position: static; } }
+  .how h2 { margin: 4px 0 2px; font-size: 18px; font-weight: 600; }
+  .how p.s { margin: 0; color: var(--sub); font-size: 14px; }
+  .how ul { margin: 12px 0 0; padding: 0; list-style: none; }
+  .how li { padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--sub); }
+  .how li b { color: var(--ink); font-weight: 600; }
+
+  /* app window */
+  .win { position: relative; background: var(--bg); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.08); height: 780px; display: flex; flex-direction: column; }
+  @media (max-width: 700px) { .win { height: 820px; } }
+  .chrome { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-bottom: 1px solid var(--line); flex: none; }
+  .chrome i { width: 10px; height: 10px; border-radius: 50%; background: var(--grey); }
+  .url { margin-left: 10px; padding: 2px 12px; border-radius: 7px; background: var(--card); font: 12px var(--mono); color: var(--faint); }
+  .scroll { flex: 1; overflow: auto; position: relative; }
+  .appbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; }
+  .mark { display: flex; align-items: center; gap: 9px; font-weight: 600; border: 0; background: none; cursor: pointer; padding: 0; }
+  .mark i { width: 24px; height: 24px; border-radius: 7px; background: #16a34a; display: grid; place-items: center; color: #fff; font-style: normal; font-size: 13px; }
+  .who { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sub); position: relative; }
+  .pill { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
+  .av { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-weight: 600; font-size: 13px; }
+  .menu { position: absolute; right: 0; top: 38px; z-index: 5; width: 210px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 16px 40px rgba(0,0,0,.12); }
+  .menu button { display: block; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-radius: 9px; background: none; cursor: pointer; font-size: 14px; }
+  .menu button:hover { background: var(--bg); }
+  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+  .col { max-width: 720px; margin: 0 auto; padding: 4px 22px 60px; }
+  .fade { animation: up .25s ease both; }
+  @keyframes up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  h1 { margin: 0; font-size: 34px; line-height: 1.12; font-weight: 600; letter-spacing: -.025em; }
+  .lede { margin: 8px 0 0; color: var(--sub); font-size: 16px; }
+  .k { font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+  .btn { height: 40px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-weight: 500; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.do { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn.sm { height: 34px; padding: 0 12px; font-size: 13.5px; border-radius: 10px; }
+  .tl { border: 0; background: none; padding: 0; color: var(--sub); cursor: pointer; font-size: 14px; text-decoration: underline; text-decoration-color: var(--grey2); text-underline-offset: 3px; }
+
+  /* home */
+  .hello { padding-top: 5vh; text-align: center; }
+  .ask { display: flex; align-items: center; gap: 10px; margin-top: 22px; padding: 8px 8px 8px 18px; border: 1px solid var(--line); border-radius: 20px; background: var(--card); box-shadow: 0 10px 30px rgba(0,0,0,.05); text-align: left; }
+  .ask input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 16px; height: 40px; }
+  .send { width: 40px; height: 40px; flex: none; border-radius: 13px; border: 0; background: var(--ink); color: var(--card); cursor: pointer; font-size: 18px; }
+  .dos { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
+  .doc { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13.5px; color: var(--ink); cursor: pointer; }
+  .doc:hover { border-color: var(--grey2); }
+  .doc em { font-style: normal; font: 12px var(--mono); color: var(--faint); }
+  .reply { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 26px; padding: 13px 16px; border: 0; border-radius: 16px; background: var(--red-soft); text-align: left; cursor: pointer; }
+  .reply i { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
+  .reply b { display: block; font-weight: 600; }
+  .reply span { font-size: 14px; color: var(--sub); }
+  .reply .go { margin-left: auto; white-space: nowrap; }
+  .sec { margin-top: 28px; }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+  @media (max-width: 760px) { .cards { grid-template-columns: 1fr 1fr; } }
+  .cd { display: flex; flex-direction: column; gap: 6px; min-height: 108px; padding: 14px 15px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); text-align: left; cursor: pointer; }
+  .cd .t { font-size: 14px; font-weight: 500; line-height: 1.3; }
+  .cd .n { margin-top: auto; font-size: 26px; font-weight: 600; letter-spacing: -.02em; line-height: 1; }
+  .cd .n small { font-size: 12.5px; font-weight: 400; color: var(--faint); margin-left: 5px; }
+
+  /* answer */
+  .back { border: 0; background: none; padding: 0; cursor: pointer; color: var(--sub); font-size: 14px; }
+  .say { margin: 14px 0 0; font-size: 19px; line-height: 1.5; }
+  .todo { display: flex; align-items: center; gap: 16px; margin-top: 22px; padding: 16px 18px; border-radius: 16px; background: var(--blue-soft); }
+  .todo div { flex: 1; min-width: 0; }
+  .todo b { display: block; font-weight: 600; }
+  .todo span { font-size: 14px; color: var(--sub); }
+  .tag { display: inline-block; margin-top: 18px; padding: 3px 9px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font: 12px var(--mono); color: var(--faint); }
+
+  /* workspace panel */
+  .veil { position: absolute; inset: 0; pointer-events: auto; background: rgba(0,0,0,.18); animation: fd .2s both; }
+  @keyframes fd { from { opacity: 0; } }
+  .sheet { pointer-events: auto; position: absolute; top: 0; right: 0; bottom: 0; width: min(600px, 100%); overflow-y: auto; background: var(--bg); border-left: 1px solid var(--line); box-shadow: -20px 0 60px rgba(0,0,0,.08); animation: sl .28s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes sl { from { transform: translateX(30px); opacity: 0; } }
+  .sh { padding: 16px 22px 40px; }
+  .sh-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .x { width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); cursor: pointer; }
+  .sh h2 { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
+  .quiet { margin: 6px 0 0; color: var(--sub); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+  .quiet .dot { color: var(--grey2); }
+  .tabs { display: flex; gap: 18px; margin-top: 18px; border-bottom: 1px solid var(--line); }
+  .tab { padding: 8px 0; border: 0; background: none; cursor: pointer; color: var(--sub); font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab[aria-selected="true"] { color: var(--ink); border-color: var(--ink); font-weight: 500; }
+  .start { margin-top: 16px; padding: 16px; border-radius: 16px; background: var(--blue-soft); display: flex; gap: 14px; align-items: center; }
+  .start div { flex: 1; min-width: 0; }
+  .start b { display: block; font-weight: 600; }
+  .start span { font-size: 14px; color: var(--sub); }
+  .rows { margin-top: 12px; }
+  .row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+  .row div { flex: 1; min-width: 0; }
+  .row b { display: block; font-weight: 500; }
+  .row span { font-size: 13.5px; color: var(--sub); }
+  .row small { font: 12px var(--mono); color: var(--faint); white-space: nowrap; }
+  .row.red b::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--red); vertical-align: 2px; }
+  .lnk { margin-top: 14px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .fld { margin-top: 14px; }
+  .fld label { display: block; font-size: 13px; color: var(--sub); margin-bottom: 5px; }
+  .fld input, .fld textarea, .fld select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); outline: none; }
+  .fld textarea { min-height: 90px; resize: vertical; line-height: 1.5; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; }
+  .acts { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-top: 18px; }
+  .mail { margin-top: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+  .mail .to { padding: 11px 14px; border-bottom: 1px solid var(--line); font-size: 13.5px; color: var(--sub); }
+  .mail input { width: 100%; border: 0; border-bottom: 1px solid var(--line); padding: 11px 14px; background: none; outline: none; font-weight: 500; }
+  .mail textarea { width: 100%; min-height: 170px; border: 0; padding: 12px 14px; background: none; outline: none; resize: vertical; line-height: 1.55; }
+  .facts { margin: 12px 0 0; padding: 0; list-style: none; }
+  .facts li { display: grid; grid-template-columns: 80px 1fr; gap: 10px; padding: 6px 0; font-size: 14px; }
+  .facts li span { color: var(--faint); font-size: 13px; }
+  .steps3 { display: flex; gap: 8px; margin-top: 14px; }
+  .s3 { flex: 1; padding: 6px 0; border-top: 2px solid var(--line); font-size: 12.5px; color: var(--faint); }
+  .s3.on { border-color: var(--ink); color: var(--ink); }
+  .ticks { list-style: none; margin: 16px 0 0; padding: 0; }
+  .ticks li { display: flex; align-items: center; gap: 10px; padding: 7px 0; color: var(--faint); font-size: 14px; }
+  .ticks li.on { color: var(--ink); } .ticks li.done { color: var(--sub); }
+  .ticks li small { margin-left: auto; font: 12px var(--mono); }
+  .tk { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 1.5px solid var(--line); }
+  .on .tk { border-color: var(--grey2); border-top-color: var(--blue); animation: spin .8s linear infinite; }
+  .done .tk { border-color: var(--ink); background: var(--ink); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .done-box { padding: 50px 10px; text-align: center; }
+  .done-box .ok { width: 44px; height: 44px; margin: 0 auto 12px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: var(--card); }
+  .note { margin-top: 12px; font-size: 13.5px; color: var(--sub); }
+  .sw { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .sw b { display: block; font-weight: 500; }
+  .sw span { font-size: 13px; color: var(--sub); }
+  .tg { width: 40px; height: 24px; border-radius: 99px; border: 0; background: var(--grey); position: relative; cursor: pointer; flex: none; }
+  .tg::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .tg[aria-pressed="true"] { background: var(--ink); }
+  .tg[aria-pressed="true"]::after { left: 19px; }
+  .toast { pointer-events: none; position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 9px 14px; border-radius: 12px; background: var(--ink); color: var(--card); font-size: 13.5px; animation: up .2s both; z-index: 9; }
+</style>
+</head>
+<body>
+<div class="story"><div class="story-in"><div class="stepbar" id="steps" role="tablist" aria-label="Steps"></div></div></div>
+<div class="stage">
+  <div class="win">
+    <div class="chrome"><i></i><i></i><i></i><span class="url" id="url">growjin.com/ask</span></div>
+    <div class="scroll" id="app"></div>
+    <div id="ov" style="position:absolute;left:0;right:0;bottom:0;top:36px;pointer-events:none"></div>
+  </div>
+  <aside class="how" id="how"></aside>
+</div>
+
+<script>
+// ---------- made-up data ----------
+const LEADS = [
+  { id: 'l1', name: 'Bloom Salon', who: 'Maya Chen, owner', why: 'Posts on Instagram, last post 70 days ago', fit: 'Very likely', src: 'from Google', email: 'maya@bloomsalon.co', facts: [['Sells', 'Hair and nails'], ['Size', '2–5 people'], ['Where', 'Leeds, UK'], ['Social', 'Instagram · quiet 70 days']] },
+  { id: 'l2', name: 'Oak & Ember Candles', who: 'Sam Patel, founder', why: 'Shopify store, 40 products, no posts this month', fit: 'Very likely', src: 'from Google', email: 'sam@oakember.com', facts: [['Sells', 'Soy candles'], ['Size', 'Just the founder'], ['Where', 'Bristol, UK'], ['Social', 'Instagram · TikTok']] },
+  { id: 'l3', name: 'Hatch Yoga', who: 'Hello inbox', why: 'New studio, posts twice a month', fit: 'Likely', src: 'from LinkedIn', email: 'hello@hatchyoga.com', facts: [['Sells', 'Yoga classes'], ['Size', '6–10 people'], ['Where', 'Manchester, UK'], ['Social', 'Instagram']] },
+]
+const POSTS = [
+  { id: 'p1', name: '“Any tool that turns product photos into posts?”', why: 'r/smallbusiness · 3 hours ago · 12 replies', fit: 'Very likely' },
+  { id: 'p2', name: '“What do you use to plan social posts?”', why: 'Hacker News · yesterday', fit: 'Likely' },
+]
+const FOLLOW = [{ name: 'Rosa Bakery', why: 'Emailed 4 days ago, no reply. Second email ready.' }, { name: 'North Pottery', why: 'Emailed 6 days ago, no reply. Last email ready.' }]
+const TOPICS = [
+  { id: 't1', name: 'Instagram captions for bakeries', why: 'Drafted · 880 searches a month · easy', drafted: true },
+  { id: 't2', name: 'How often should a small shop post?', why: '1,300 searches a month · fairly easy' },
+  { id: 't3', name: 'Rewrite: your /pricing page', why: 'You’re #9 for “ai post maker pricing”' },
+]
+
+// ---------- storyboard ----------
+const STEPS = [
+  ['home', 'Home: no other pages'],
+  ['leads', 'Leads open here'],
+  ['lead', 'Email a lead'],
+  ['find', 'Find new leads'],
+  ['lset', 'Lead settings'],
+  ['email', 'Email: replies, follow-ups'],
+  ['camp', 'Send to a list'],
+  ['write', 'Write a post'],
+  ['typed', 'A typed answer'],
+  ['connect', 'Connect Gmail / Google'],
+  ['settings', 'Settings'],
+]
+const HOW = {
+  home: ['Home: the only page', 'Nothing in the app links to an old page any more. Everything you can do starts here.', [
+    '<b>Ask box</b> understands jobs too: “find me leads”, “email my list”, “write a post”. It opens the right workspace instead of answering.',
+    '<b>Workspaces</b> under the box, each with what’s waiting (6 leads, 2 replies, 1 draft). These replace the sidebar and the Tools page.',
+    '<b>Red line</b> only when someone replied.',
+    '<b>Ready answers</b> as now. Their buttons open workspaces, never pages.',
+    'Settings, connections and usage live in the <b>account menu</b> (top right).']],
+  leads: ['Leads workspace', 'Lead Finder, rebuilt as a panel over Ask. Same data and API as /leads.', [
+    'Quiet top line: last search · Settings · Find new leads · Download.',
+    'Two tabs: <b>Contact directly</b> and <b>Join conversations</b>.',
+    'One blue Start here, then quiet rows.',
+    '“Sent or skipped” and “Checked but not kept” are links at the bottom, opening in the same panel.']],
+  lead: ['Email a lead', 'Opens inside the workspace (already built for the Who should I email card).', [
+    'Who, why, four short facts, the email to edit.',
+    '<b>Approve and send</b> or Skip. The next lead opens by itself.',
+    '← back to the list, without leaving the panel.']],
+  find: ['Find new leads', 'The Lead Engine search runs in the panel with its steps, like the card progress.', [
+    'Closing the panel doesn’t stop it: the workspace chip on home shows “Searching…”.',
+    'Stop and keep what’s found.']],
+  lset: ['Lead settings', 'The brief and five filters, in the same panel. No settings page.', [
+    'Who you’re looking for, kinds of business, where, size, who to contact, leads per search.',
+    'Reddit / Hacker News switch, morning follow-ups, daily limit.',
+    '<b>Add your own emails</b> lives here too.']],
+  email: ['Email workspace', 'Email Outreach, rebuilt as a panel. Same Gmail data.', [
+    'Tabs: <b>Replies</b> (red dot), <b>Follow-ups</b>, <b>Lists</b>.',
+    'Replies open in the reply panel that already exists.',
+    'Follow-ups: Send / Skip, next opens.']],
+  camp: ['Send to a list', 'A campaign in three steps, in the panel: who gets it, the email, review & send.', [
+    'Paste or upload people (CSV, Excel…).',
+    'One email with {first name} and {company} filled in.',
+    'Sent within the daily limit, follow-ups on.']],
+  write: ['Write workspace', 'The Search Agent’s posts, in a panel.', [
+    'Topic list: drafted first.',
+    'Open one: three optional questions, then the draft.',
+    '<b>Copy</b> or <b>I published it</b>. Keyword ideas and AI answers are ready answers already.']],
+  typed: ['Typed answers', 'A typed answer’s button opens a workspace too.', [
+    'The model picks an action (leads, email, write, connect, settings); each is a panel now, not a link.',
+    'Analytics questions are just answered here; there’s no Analytics page to go to.']],
+  connect: ['Connect, in place', 'When a card needs Gmail or Search Console, connecting happens in a panel.', [
+    'Gmail: one button (Google sign-in pops up, then you’re back here).',
+    'Search Console: the two fields we need, with the steps.',
+    'The card fills in as soon as it’s connected.']],
+  settings: ['Settings', 'From the account menu. Short.', [
+    'Your business (what you sell, who to), daily email, demo mode, usage this month, sign out.',
+    'Social Studio, Meta Ads and Reminders aren’t moved in this first pass: they stay reachable from “More tools” in this menu until they get workspaces.']],
+}
+
+let S = { step: 'home', panel: null, sub: null, tab: 'direct', leadIdx: 0, menu: false, camp: 1, findAt: 0, write: 0, toast: '' }
+
+function go(step) {
+  S = { ...S, step, menu: false, toast: '', sub: null }
+  const P = { home: null, leads: 'leads', lead: 'leads', find: 'leads', lset: 'leads', email: 'email', camp: 'email', write: 'write', typed: null, connect: 'connect', settings: 'settings' }
+  S.panel = P[step]
+  if (step === 'lead') S.sub = 'lead'
+  if (step === 'find') { S.sub = 'find'; S.findAt = Date.now() }
+  if (step === 'lset') S.sub = 'lset'
+  if (step === 'camp') { S.sub = 'camp'; S.camp = 1 }
+  if (step === 'email') S.tab = 'replies'
+  if (step === 'leads') S.tab = 'direct'
+  render()
+}
+
+function toast(t) { S.toast = t; render(); clearTimeout(window._t); window._t = setTimeout(() => { S.toast = ''; render() }, 1800) }
+
+// ---------- views ----------
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+
+function home() {
+  return `<div class="col fade"><div class="hello">
+    <h1>What do you want to know or do?</h1>
+    <p class="lede">About frekto.ai. Ask anything, or pick up where you left off.</p>
+    <form class="ask" onsubmit="event.preventDefault(); askBox(this.q.value)">
+      <input name="q" placeholder="Try “find me leads” or “who replied?”" aria-label="Ask">
+      <button class="send" aria-label="Ask">↑</button>
+    </form>
+    <div class="dos">
+      <button class="doc" onclick="open_('leads')">Leads <em>6 ready</em></button>
+      <button class="doc" onclick="open_('email')">Email <em>2 replies · 2 follow-ups</em></button>
+      <button class="doc" onclick="open_('write')">Write <em>1 draft</em></button>
+    </div>
+  </div>
+  <button class="reply" onclick="open_('email')"><i></i><div><b>Maya at Bloom Salon replied</b><span>“Sounds interesting, can we talk Thursday?”</span></div><span class="go tl">Answer</span></button>
+  <div class="sec"><span class="k">Ready this morning</span>
+    <div class="cards">
+      <button class="cd" onclick="go('typed')"><span class="t">Who should I email today?</span><span class="n">6<small>ready</small></span></button>
+      <button class="cd"><span class="t">Why am I not on Google?</span><span class="n">20<small>of 44 pages</small></span></button>
+      <button class="cd"><span class="t">What’s my visibility score?</span><span class="n">58<small>out of 100</small></span></button>
+      <button class="cd"><span class="t">What should I write this week?</span><span class="n">3<small>topics</small></span></button>
+      <button class="cd"><span class="t">Where should I talk about Frekto?</span><span class="n">2<small>posts</small></span></button>
+      <button class="cd"><span class="t">Am I on track?</span><span class="n">+12%<small>visits</small></span></button>
+    </div></div></div>`
+}
+
+function typed() {
+  return `<div class="col fade" style="padding-top:18px">
+    <button class="back" onclick="go('home')">← Home</button>
+    <p class="k" style="margin:16px 0 0">You asked</p>
+    <h1 style="font-size:28px;margin-top:4px">Which leads should I email first?</h1>
+    <p class="say"><b>Bloom Salon and Oak &amp; Ember</b> fit best: both are small, sell to locals on Instagram, and haven’t posted in over a month.</p>
+    <div class="todo"><div><b>Email Bloom Salon</b><span>The email is written. Check it and send.</span></div><button class="btn do" onclick="go('lead')">Open leads</button></div>
+    <span class="tag">opens the Leads workspace · not a page</span>
+  </div>`
+}
+
+function askBox(q) {
+  q = q.toLowerCase()
+  if (/lead|prospect|who.*email|customers/.test(q)) return open_('leads')
+  if (/repl|inbox|follow|list|campaign|email/.test(q)) return open_('email')
+  if (/write|post|blog|article/.test(q)) return open_('write')
+  if (/connect|gmail|search console/.test(q)) return open_('connect')
+  if (/setting|account/.test(q)) return open_('settings')
+  go('typed')
+}
+function open_(p) { const m = { leads: 'leads', email: 'email', write: 'write', connect: 'connect', settings: 'settings' }; go(m[p]) }
+
+function shTop(label) { return `<div class="sh-top"><span class="k">${label}</span><button class="x" aria-label="Close" onclick="go('home')">✕</button></div>` }
+
+function leadsPanel() {
+  if (S.sub === 'lead') return leadView()
+  if (S.sub === 'find') return findView()
+  if (S.sub === 'lset') return leadSettings()
+  const direct = S.tab === 'direct'
+  const list = direct ? LEADS : POSTS
+  return `<div class="sh">${shTop('Leads')}
+    <h2>Your leads</h2>
+    <p class="quiet">Last search 2 h ago <span class="dot">·</span> <button class="tl" onclick="S.sub='lset';render()">Settings</button> <span class="dot">·</span> <button class="tl" onclick="go('find')">Find new leads</button> <span class="dot">·</span> <button class="tl" onclick="toast('leads-2026-11-07.csv saved')">Download</button></p>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="${direct}" onclick="S.tab='direct';render()">Contact directly · 6</button>
+      <button class="tab" role="tab" aria-selected="${!direct}" onclick="S.tab='talk';render()">Join conversations · 2</button>
+    </div>
+    <div class="start"><div><b>${direct ? '6 emails ready for your OK' : '2 posts to reply to'}</b><span>Start with ${esc(list[0].name)}</span></div><button class="btn do" onclick="S.sub='lead';S.leadIdx=0;render()">${direct ? 'Review the email' : 'Write a reply'}</button></div>
+    <div class="rows">${list.slice(1).map((l, i) => `<button class="row" onclick="S.sub='lead';S.leadIdx=${i + 1};render()"><div><b>${esc(l.name)}</b><span>${esc(l.why)}</span></div><small>${l.fit}</small></button>`).join('')}</div>
+    <div class="lnk"><button class="tl">4 sent or skipped</button><button class="tl">Checked but not kept (9)</button><button class="tl" onclick="S.sub='lset';render()">Add your own emails</button></div>
+  </div>`
+}
+
+function leadView() {
+  const l = LEADS[S.leadIdx]
+  if (!l) return `<div class="sh">${shTop('Leads')}<div class="done-box"><div class="ok">✓</div><h2>All caught up</h2><p class="note">No more emails waiting. Find new leads, or come back tomorrow.</p><div class="acts" style="justify-content:center"><button class="btn do" onclick="go('find')">Find new leads</button><button class="tl" onclick="go('home')">Back to Ask</button></div></div></div>`
+  return `<div class="sh fade">${shTop('Leads')}
+    <div class="quiet" style="margin:0 0 10px"><button class="tl" onclick="S.sub=null;render()">← All leads</button><span class="dot">·</span>${S.leadIdx + 1} of ${LEADS.length}</div>
+    <h2>${esc(l.name)}</h2>
+    <p class="quiet">${l.fit} <span class="dot">·</span> ${l.src}</p>
+    <p class="note" style="margin-top:8px">${esc(l.why)}.</p>
+    <ul class="facts">${l.facts.map(f => `<li><span>${f[0]}</span>${esc(f[1])}</li>`).join('')}</ul>
+    <div class="mail"><div class="to">To ${esc(l.who)} · ${l.email}</div><input value="Quick idea for ${esc(l.name)}’s Instagram"><textarea>Hi ${l.who.split(' ')[0]},
+
+I saw ${esc(l.name)} hasn’t posted in a while. Frekto turns a photo into a ready post in a minute, in your style.
+
+Want me to make three for you, free, so you can see?
+
+Vishnu</textarea></div>
+    <div class="acts"><button class="btn do" onclick="S.leadIdx++;toast('Sent. Next: ' + (LEADS[S.leadIdx] ? LEADS[S.leadIdx].name : 'all done'))">Approve and send</button><button class="btn" onclick="S.leadIdx++;render()">Skip</button></div>
+  </div>`
+}
+
+function findView() {
+  const t = (Date.now() - S.findAt) / 1000
+  const st = ['Reading what you sell and who buys it', 'Searching Google for small candle and salon businesses', 'Checking each site: size, posting, fit', 'Finding the right person’s email', 'Writing why each one fits']
+  const n = Math.min(st.length, Math.floor(t / 1.4))
+  if (n < st.length) setTimeout(render, 700)
+  return `<div class="sh">${shTop('Leads')}
+    <div class="quiet" style="margin:0 0 10px"><button class="tl" onclick="S.sub=null;render()">← All leads</button></div>
+    <h2>${n < st.length ? 'Finding new leads…' : '8 new leads found'}</h2>
+    <p class="quiet">${n < st.length ? `${Math.round(t)} s · usually 3–5 minutes · you can close this, it keeps going` : 'They’re at the top of your list.'}</p>
+    <ul class="ticks">${st.map((s, i) => `<li class="${i < n ? 'done' : i === n ? 'on' : ''}"><span class="tk"></span>${s}${i < n ? `<small>${['done', '24 sites', '11 kept', '8 emails', 'done'][i]}</small>` : ''}</li>`).join('')}</ul>
+    <div class="acts">${n < st.length ? '<button class="btn" onclick="S.findAt -= 99999;render()">Stop and keep what’s found</button>' : '<button class="btn do" onclick="S.sub=null;render()">See the leads</button>'}</div>
+  </div>`
+}
+
+function leadSettings() {
+  return `<div class="sh fade">${shTop('Leads · settings')}
+    <div class="quiet" style="margin:0 0 10px"><button class="tl" onclick="S.sub=null;render()">← All leads</button></div>
+    <h2>Who you’re looking for</h2>
+    <div class="fld"><label>In your words</label><textarea>Small local businesses that sell to people nearby and should post on Instagram but don’t have time: salons, bakeries, candle makers, studios.</textarea></div>
+    <div class="fld"><label>Kinds of business to search</label><div class="chips"><span class="chip">hair salon</span><span class="chip">bakery</span><span class="chip">candle maker</span><span class="chip">yoga studio</span><span class="chip">+ add</span></div></div>
+    <div class="fld"><label>Where</label><input value="United Kingdom"></div>
+    <div class="fld"><label>Leads per search</label><select><option>10</option><option>20</option></select></div>
+    <div class="sw"><div><b>Reddit and Hacker News posts</b><span>Find people asking for a tool like yours</span></div><button class="tg" aria-pressed="true" onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed')!=='true')"></button></div>
+    <div class="sw"><div><b>Follow-ups every morning</b><span>Stop as soon as they reply · up to 20 emails a day</span></div><button class="tg" aria-pressed="true" onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed')!=='true')"></button></div>
+    <div class="acts"><button class="btn do" onclick="S.sub=null;toast('Saved. The next search uses this.')">Save</button><button class="tl" onclick="go('camp')">Add your own emails instead</button></div>
+  </div>`
+}
+
+function emailPanel() {
+  if (S.sub === 'camp') return campView()
+  const t = S.tab
+  const body = t === 'replies'
+    ? `<div class="rows"><button class="row red"><div><b>Maya at Bloom Salon</b><span>“Sounds interesting, can we talk Thursday?” · wants a call</span></div><small>1 h</small></button><button class="row red"><div><b>Leo at Fern Florist</b><span>“How much is it?” · asked a question</span></div><small>yesterday</small></button></div>`
+    : t === 'follow'
+      ? `<div class="start"><div><b>2 follow-ups ready</b><span>${FOLLOW[0].name}: ${FOLLOW[0].why}</span></div><button class="btn do" onclick="toast('Sent. Next: North Pottery')">Send</button></div><div class="rows">${FOLLOW.slice(1).map(f => `<button class="row"><div><b>${f.name}</b><span>${f.why}</span></div></button>`).join('')}</div>`
+      : `<div class="start"><div><b>Send one email to a list</b><span>Paste or upload people. We write it once, fill in each name.</span></div><button class="btn do" onclick="go('camp')">New list</button></div><div class="rows"><button class="row"><div><b>Pottery fair contacts</b><span>34 people · 21 sent · 3 replies</span></div><small>2 Nov</small></button></div>`
+  return `<div class="sh">${shTop('Email')}
+    <h2>Email</h2>
+    <p class="quiet">Sending from vishnu@frekto.ai <span class="dot">·</span> 9 of 20 sent today</p>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="${t === 'replies'}" onclick="S.tab='replies';render()">Replies · 2</button>
+      <button class="tab" role="tab" aria-selected="${t === 'follow'}" onclick="S.tab='follow';render()">Follow-ups · 2</button>
+      <button class="tab" role="tab" aria-selected="${t === 'lists'}" onclick="S.tab='lists';render()">Lists</button>
+    </div>${body}</div>`
+}
+
+function campView() {
+  const c = S.camp
+  const steps = `<div class="steps3"><span class="s3 ${c >= 1 ? 'on' : ''}">1 · Who gets it</span><span class="s3 ${c >= 2 ? 'on' : ''}">2 · The email</span><span class="s3 ${c >= 3 ? 'on' : ''}">3 · Review &amp; send</span></div>`
+  const body = c === 1
+    ? `<div class="fld"><label>Paste emails, or a list with names</label><textarea>maya@bloomsalon.co, Maya, Bloom Salon
+sam@oakember.com, Sam, Oak & Ember
+hello@hatchyoga.com, , Hatch Yoga</textarea></div><p class="note">Or <button class="tl">upload a file</button> (CSV, Excel, PDF, Word, .vcf). 3 people · none already emailed.</p><div class="acts"><button class="btn do" onclick="S.camp=2;render()">Next: the email</button></div>`
+    : c === 2
+      ? `<div class="fld"><label>What’s it about?</label><input value="A free set of 3 posts made from their photos"></div><div class="mail"><input value="3 free posts for {company}"><textarea>Hi {first name},
+
+Frekto turns a photo into a ready Instagram post in a minute. I’d like to make three for {company}, free.
+
+Reply with yes and I’ll send them over.
+
+Vishnu</textarea></div><div class="acts"><button class="btn do" onclick="S.camp=3;render()">Next: review</button><button class="tl" onclick="S.camp=1;render()">Back</button></div>`
+      : `<div class="rows"><div class="row" style="cursor:default"><div><b>Maya · Bloom Salon</b><span>3 free posts for Bloom Salon</span></div></div><div class="row" style="cursor:default"><div><b>Sam · Oak &amp; Ember</b><span>3 free posts for Oak &amp; Ember</span></div></div><div class="row" style="cursor:default"><div><b>Hatch Yoga</b><span>“Hi Hatch Yoga team,” · no name given</span></div></div></div><p class="note">Goes out today within your limit (11 left). Follow-ups on, stop when they reply.</p><div class="acts"><button class="btn do" onclick="S.sub=null;S.tab='lists';toast('3 emails on their way')">Send 3 emails</button><button class="tl" onclick="S.camp=2;render()">Back</button></div>`
+  return `<div class="sh fade">${shTop('Email · new list')}
+    <div class="quiet" style="margin:0 0 10px"><button class="tl" onclick="S.sub=null;render()">← Email</button></div>
+    <h2>Send to a list</h2>${steps}${body}</div>`
+}
+
+function writePanel() {
+  if (S.write) {
+    const t = TOPICS[S.write - 1]
+    return `<div class="sh fade">${shTop('Write')}
+      <div class="quiet" style="margin:0 0 10px"><button class="tl" onclick="S.write=0;render()">← All posts</button></div>
+      <h2>${esc(t.name)}</h2>
+      <p class="quiet">${esc(t.why)}</p>
+      ${t.drafted ? `<div class="mail"><input value="${esc(t.name)}: 30 you can use today"><textarea style="min-height:260px">Your counter is full of things people want to see. Here are 30 captions…
+
+1. Fresh out of the oven, and gone by noon.
+2. …</textarea></div>
+      <div class="acts"><button class="btn do" onclick="toast('Copied. Paste it into your blog.')">Copy the post</button><button class="btn" onclick="S.write=0;toast('Marked published. We’ll check it on Google.')">I published it</button><button class="tl">Write it again</button></div>`
+      : `<p class="note">Three quick questions make it sound like you. All optional.</p>
+      <div class="fld"><label>A real example from your work</label><input placeholder="e.g. a customer who doubled their bookings"></div>
+      <div class="fld"><label>A number you can share</label><input placeholder="e.g. 400 posts made last month"></div>
+      <div class="fld"><label>Your view in one line</label><input placeholder="e.g. Three posts a week beats one perfect post"></div>
+      <div class="acts"><button class="btn do" onclick="TOPICS[S.write-1].drafted=true;render()">Write the post</button></div>`}
+    </div>`
+  }
+  return `<div class="sh">${shTop('Write')}
+    <h2>Posts to write</h2>
+    <p class="quiet">From this week’s research <span class="dot">·</span> <button class="tl">Search words you can win</button></p>
+    <div class="start"><div><b>1 post is written</b><span>${esc(TOPICS[0].name)}. Check it and publish.</span></div><button class="btn do" onclick="S.write=1;render()">Check the draft</button></div>
+    <div class="rows">${TOPICS.slice(1).map((t, i) => `<button class="row" onclick="S.write=${i + 2};render()"><div><b>${esc(t.name)}</b><span>${esc(t.why)}</span></div></button>`).join('')}</div>
+  </div>`
+}
+
+function connectPanel() {
+  return `<div class="sh">${shTop('Connect')}
+    <h2>Connect your accounts</h2>
+    <p class="quiet">Without leaving Ask. Each one fills in the answers that need it.</p>
+    <div class="sw"><div><b>Gmail</b><span>To send emails and see replies</span></div><button class="btn sm" onclick="this.outerHTML='<span class=&quot;note&quot;>Connected ✓</span>'">Connect</button></div>
+    <div class="sw" style="align-items:flex-start"><div style="flex:1"><b>Google Search Console</b><span>Which pages show up on Google, and why not</span>
+      <ol class="note" style="padding-left:18px;margin:8px 0 0"><li>In Google Cloud, make a service account and a key (2 min).</li><li>In Search Console → Users, add its email as a user.</li><li>Paste both here.</li></ol>
+      <div class="fld"><label>Service account email</label><input placeholder="growjin@project.iam.gserviceaccount.com"></div>
+      <div class="fld"><label>Private key</label><textarea placeholder="-----BEGIN PRIVATE KEY-----"></textarea></div>
+      <div class="acts"><button class="btn do" onclick="toast('Connected. Checking your pages…')">Connect</button></div></div></div>
+    <div class="sw"><div><b>Google Analytics</b><span>Visits and where they come from</span></div><button class="btn sm">Connect</button></div>
+  </div>`
+}
+
+function settingsPanel() {
+  return `<div class="sh">${shTop('Settings')}
+    <h2>Settings</h2>
+    <div class="fld"><label>What you sell</label><input value="Frekto: turns photos into ready social posts"></div>
+    <div class="fld"><label>Who it’s for</label><input value="Small local businesses that should post more"></div>
+    <div class="sw"><div><b>Morning email</b><span>Your ready answers at 8:00</span></div><button class="tg" aria-pressed="true" onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed')!=='true')"></button></div>
+    <div class="sw"><div><b>Demo mode</b><span>Made-up leads and emails; nothing is sent</span></div><button class="tg" aria-pressed="false" onclick="this.setAttribute('aria-pressed', this.getAttribute('aria-pressed')!=='true')"></button></div>
+    <div class="sw"><div><b>Usage this month</b><span>$4.20 · searches $2.80 · AI $1.40</span></div><button class="tl">Details</button></div>
+    <div class="sw"><div><b>Connections</b><span>Gmail ✓ · Search Console ✓ · Analytics —</span></div><button class="tl" onclick="go('connect')">Manage</button></div>
+    <div class="acts"><button class="btn do" onclick="toast('Saved')">Save</button></div>
+  </div>`
+}
+
+function appbar() {
+  return `<div class="appbar"><button class="mark" onclick="go('home')"><i>↗</i>GrowJin</button>
+    <div class="who"><span class="pill">frekto.ai</span><button class="av" aria-label="Account" onclick="S.menu=!S.menu;render()">V</button>
+    ${S.menu ? `<div class="menu"><button onclick="go('settings')">Settings</button><button onclick="go('connect')">Connections</button><button onclick="go('settings')">Usage</button><hr><button style="color:var(--sub)">More tools: Social, Meta Ads, Reminders</button><hr><button>Sign out</button></div>` : ''}</div></div>`
+}
+
+function render() {
+  document.getElementById('steps').innerHTML = STEPS.map(([id, t], i) => `<button class="st" role="tab" aria-current="${S.step === id ? 'step' : 'false'}" onclick="go('${id}')"><b>${i + 1}</b>${t}</button>`).join('')
+  const h = HOW[S.step]
+  document.getElementById('how').innerHTML = `<span class="k">How it works</span><h2>${h[0]}</h2><p class="s">${h[1]}</p><ul>${h[2].map(x => `<li>${x}</li>`).join('')}</ul>`
+  const main = S.step === 'typed' ? typed() : home()
+  const P = { leads: leadsPanel, email: emailPanel, write: writePanel, connect: connectPanel, settings: settingsPanel }
+  document.getElementById('url').textContent = 'growjin.com/ask' + (S.panel ? `  ·  ${S.panel} panel` : '')
+  document.getElementById('app').innerHTML = appbar() + main
+  document.getElementById('ov').innerHTML = (S.panel ? `<div class="veil" onclick="go('home')"></div><aside class="sheet" role="dialog" aria-label="${S.panel}">${P[S.panel]()}</aside>` : '')
+    + (S.toast ? `<div class="toast" role="status">${esc(S.toast)}</div>` : '')
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.panel) go('home') })
+render()
+</script>
+</body>
+</html>

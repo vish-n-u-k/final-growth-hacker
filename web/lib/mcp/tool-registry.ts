@@ -3,7 +3,7 @@ export interface MCPTool {
   description: string
   inputSchema: {
     type: 'object'
-    properties: Record<string, { type: string; description: string }>
+    properties: Record<string, { type: string; description: string; items?: { type: string } }>
     required?: string[]
   }
 }
@@ -21,7 +21,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_module_detail',
     description:
-      'Use this when a user asks for specific recommendations or advice about their website or marketing — e.g. "what should my H1 say?", "what should I write for my meta description?", "what CTA should I use?", "how should I structure my homepage?", "what should my page title be?", "give me a suggestion for my about page". Returns all checklist items for a module, grouped by category. Each item includes AI-generated findings (aiDetail), a plain-English explanation (aiNarrative), and a specific recommended action or copy suggestion (aiAction). Use module_type="seo" for on-page SEO questions (H1, meta description, title tags, headings, URLs), module_type="foundation" for core brand/website questions, module_type="social-media" for social content questions.',
+      'Use this when a user asks for specific recommendations or advice about their website or marketing — e.g. "what should my H1 say?", "what should I write for my meta description?", "what CTA should I use?", "how should I structure my homepage?", "what should my page title be?", "give me a suggestion for my about page". Returns all checklist items for a module, grouped by category. Each item includes AI-generated findings (aiDetail), a plain-English explanation (aiNarrative), and a specific recommended action or copy suggestion (aiAction). Each item has a status: passed, failed, not_checked (the check could not run, so it is neither a pass nor counted in the score), done_by_user, skipped or not_analysed. The score is recomputed from the items. Use module_type="seo" for on-page SEO questions (H1, meta description, title tags, headings, URLs), module_type="foundation" for core brand/website questions, module_type="social-media" for social content questions.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -120,9 +120,42 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'get_goal_progress',
+    description:
+      'Use first for "where do we stand?", "are we on track for 500?", "is growth speeding up or flattening?", "how many users did we add this week / since yesterday?", "when will we reach the goal?". Returns the goal (default: 500 people who signed up, the Road to 500), today\'s count from PostHog, percent done, the Road to 500 stage, the change per week over the last 4 full weeks vs the 4 before (speeding up / steady / slowing down), the date the goal is reached at that pace, and with a deadline: weeks left, needed per week and on_track. Also 13 weeks of totals and changes, and new people in the last 24 hours. If the goal was never set, says so: ask the user what counts (signed up, active this week, or paying) and save it with set_goal.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_weekly_review',
+    description:
+      'Use for the weekly or monthly look back: "what moved us towards 500 this week, and what barely mattered?", "what should we double down on, what should we drop?", "where did our time go?". One answer with: goal pace (this week, last full week, per week over 4 weeks, trend, on track), visits / new visitors / sign-ups / Google clicks this week vs last, channels that moved or went quiet, unusual days, work done (work log, emails sent, GrowJin tasks ticked), Search & AI changes being tested, and module score changes. You make the call from it; say when the numbers are too small to tell.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_daily_numbers',
+    description:
+      'Use for day-level questions: "how did we do yesterday / today?", "today vs the 7- and 30-day average?", "which channel moved the needle in the last 24 hours, which went quiet?", "any spike or drop to look at?". Day by day from GA4 (visits, new visitors, per channel; visits landing on /admin are left out as your own team), Search Console (Google clicks and impressions, 2-3 days behind) and PostHog (sign-ups = people first seen that day, active people). For each: yesterday vs the 7- and 30-day averages, today so far, the last 14 days; channels this week vs last week with moved_most and went_quiet; and unusual days (far outside the 28 days before). Sources that aren\'t connected or fail are listed in not_available with the reason.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'set_goal',
+    description:
+      'Saves the growth goal that get_goal_progress measures. Only call it when the user tells you the goal or confirms a change. Fields (all optional, only the ones given change): target (number, e.g. 500), counts ("signed_up" = everyone in PostHog, as Road to 500 shows; "active_weekly" = active in the last 7 days; "paying" = people whose PostHog property plan_property equals plan_value), deadline (YYYY-MM-DD, or "" to remove), plan_property (default "plan"), plan_value (default "pro").',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: 'The number to reach, e.g. "500".' },
+        counts: { type: 'string', description: 'What counts: signed_up, active_weekly or paying.' },
+        deadline: { type: 'string', description: 'YYYY-MM-DD, or empty to remove the deadline.' },
+        plan_property: { type: 'string', description: 'For counts=paying: the PostHog person property holding the plan, e.g. "plan".' },
+        plan_value: { type: 'string', description: 'For counts=paying: the value that means paying, e.g. "pro".' },
+      },
+    },
+  },
+  {
     name: 'get_growth_history',
     description:
-      'Use this for progress-over-time questions — e.g. "how have I improved?", "what changed this month?", "is my score going up?", "am I still stuck on traffic?". Returns one snapshot per day (overall score, each module score, growth bottleneck stage, traffic and app-user numbers, tasks completed) plus a first-vs-latest summary of what changed. History starts from when daily snapshots began, so early on there may be only a few days.',
+      'Use this for progress-over-time questions — e.g. "how have I improved?", "what changed this month?", "is my score going up?", "am I still stuck on traffic?". Returns one snapshot per day (overall score, each module score, growth bottleneck stage, traffic and app-user numbers, tasks completed) plus a first-vs-latest summary of what changed. History starts from when daily snapshots began, so early on there may be only a few days. If the nightly save missed yesterday it is saved on the spot, and the answer says why history is short (history.problem). For the user count against the goal use get_goal_progress.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -272,7 +305,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_gsc_data',
     description:
-      'Use this for SEARCH ENGINE and SEO questions — e.g. "what keywords am I ranking for?", "what is my average position?", "which queries have high impressions but low CTR?", "what pages get the most clicks from Google?". Returns Google Search Console data: top queries with clicks, impressions, CTR, and position, plus top pages by search clicks. Do NOT use this for website traffic or app usage — use get_ga_analytics or get_posthog_analytics for those. If GSC is not connected, returns a message explaining how to connect it.',
+      'Use this for SEARCH ENGINE and SEO questions — e.g. "what keywords am I ranking for?", "what is my average position?", "which queries have high impressions but low CTR?", "what pages get the most clicks from Google?". Returns Google Search Console data for the property that covers the brand\'s site (URL-prefix or domain property): totals (clicks, impressions, CTR, average position) for the period, top queries with clicks, impressions, CTR and position, and top pages. The period ends 2 days ago (Search Console\'s data lags). If something is wrong (no property the service account can see, Google refusing), error says what and how to fix it. Do NOT use this for website traffic or app usage — use get_ga_analytics or get_posthog_analytics for those. If GSC is not connected, returns a message explaining how to connect it.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -340,10 +373,28 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_competitors',
     description:
-      'Returns all known competitors for this brand — URL, name, type (direct/indirect/aspirational), market position, and primary strength. Also returns AI findings from the Competitor Analysis and Competitor Audit modules about what competitors are doing better. If no competitors exist yet, returns a message to run the Competitor Analysis module first.',
+      'Returns all known competitors for this brand (typed in by the user or suggested in the Competitor Analysis / GEO setup; discoveredIn says which) — URL, name, type (direct/indirect/aspirational), market position, and primary strength. Also returns AI findings from the Competitor Analysis and Competitor Audit modules about what competitors are doing better. If no competitors exist yet, returns a message to run the Competitor Analysis module first.',
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'get_search_agent',
+    description:
+      'Reads the Search Agent\'s saved results (its weekly research; nothing is run or charged). Use for AI-visibility and SEO-opportunity questions: "does ChatGPT / Perplexity / Gemini / Google AI Overviews mention us?", "which competitors do AI answers recommend instead?", "which sites does AI cite?", "how does AI describe us?", "what should I write next?", "which sites could link to us?". Sections: overview (default: a short summary of everything), ai_answers (every answer: engine, named or not, brands and other products named, cited pages; mention history; most-cited sites and how often you were left out), keywords (where you rank, rank changes, keyword ideas with why each was or was not picked), topics (posts to write or pages to rewrite, with blog_id for get_blog_post), tasks (open to-dos: fix how AI describes you, get listed on…, refresh a page), links (sites to pitch with the drafted pitch and status). If the agent has not run yet, says so.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        section: {
+          type: 'string',
+          description: 'Which part to return: overview, ai_answers, keywords, topics, tasks or links. Defaults to "overview".',
+        },
+        limit: {
+          type: 'string',
+          description: 'Max rows per list. Defaults to "20", max 100.',
+        },
+      },
     },
   },
   {
@@ -412,6 +463,258 @@ export const TOOLS: MCPTool[] = [
           description: 'Max number of users to return. Defaults to "100", max 200.',
         },
       },
+    },
+  },
+  {
+    name: 'dataforseo',
+    description:
+      'Calls any DataForSEO v3 endpoint with GrowJin\'s account and returns DataForSEO\'s raw JSON response (no filtering). COSTS MONEY: every call is billed by DataForSEO (usually $0.002-$0.05 per task; the response\'s cost_usd says what it cost), so start with a small limit. Use only "live" endpoints if you want the results in the same call. Inputs: endpoint (the v3 path without /v3, e.g. "serp/google/organic/live/advanced", "serp/google/maps/live/advanced", "dataforseo_labs/google/competitors_domain/live", "dataforseo_labs/google/ranked_keywords/live", "domain_analytics/technologies/domain_technologies/live", "backlinks/backlinks/live"); payload (the task object as in the DataForSEO docs, e.g. { "keyword": "soy candles", "location_code": 2840, "language_code": "en" }, or an array of up to 10 tasks); limit (default 10, max 50; applied as "depth" on SERP endpoints and as "limit" on Labs, Backlinks, Domain Analytics and Business Listings endpoints, capping any value in the payload). Results are under response.tasks[].result. On failure returns error with DataForSEO\'s status message.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        endpoint: { type: 'string', description: 'DataForSEO v3 path, e.g. "serp/google/organic/live/advanced".' },
+        payload: { type: 'object', description: 'The task object for that endpoint (or an array of up to 10 tasks), exactly as the DataForSEO API docs describe.' },
+        limit: { type: 'number', description: 'Max results per task. Default 10, hard max 50.' },
+      },
+      required: ['endpoint', 'payload'],
+    },
+  },
+  {
+    name: 'hunter',
+    description:
+      'Calls Hunter.io with GrowJin\'s key and returns Hunter\'s raw JSON response. COSTS CREDITS (the account has few): domain-search costs 1 credit per email returned, email-finder 1 credit when it finds an email (a miss is free), email-verifier uses verification credits. Start with a small limit. Actions and params: "domain-search" { domain, optional: department (executive, it, finance, management, sales, legal, support, hr, marketing, communication, education, design, health, operations), seniority (junior, senior, executive), type (personal, generic), offset }: people and emails at a company, plus its email pattern and organization; "email-finder" { domain, first_name, last_name } (or full_name): one person\'s email with a confidence score; "email-verifier" { email }: whether the address is deliverable (status valid / invalid / accept_all / webmail / disposable / unknown). limit (default 10, max 50) sets domain-search\'s limit. On failure returns error with Hunter\'s message (HTTP 429 = credits used up).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: '"domain-search", "email-finder" or "email-verifier".' },
+        params: { type: 'object', description: 'Hunter query parameters for that action, e.g. { "domain": "example.com" } or { "domain": "example.com", "first_name": "Jane", "last_name": "Doe" } or { "email": "jane@example.com" }.' },
+        limit: { type: 'number', description: 'domain-search only: max emails to return. Default 10, hard max 50.' },
+      },
+      required: ['action', 'params'],
+    },
+  },
+  {
+    name: 'ga4',
+    description: [
+      'Asks the brand\'s own Google Analytics 4 property anything, through the GA4 Data API with the service account connected in GrowJin. Use it when get_ga_analytics, get_ga_conversions or get_daily_numbers don\'t have the cut you need: any dimensions, metrics, date ranges, filters and ordering. Free (GA4 quota only). Read-only.',
+      'action "report" (default): request = a GA4 runReport body. metrics (required) and dimensions may be plain names, e.g. { "dimensions": ["sessionSource", "landingPage"], "metrics": ["sessions", "newUsers", "engagementRate"], "dateRanges": [{ "startDate": "28daysAgo", "endDate": "yesterday" }], "dimensionFilter": { "filter": { "fieldName": "sessionMedium", "stringFilter": { "value": "organic" } } }, "orderBys": [{ "metric": { "metricName": "sessions" }, "desc": true }], "limit": 50 }. Two dateRanges compare periods (each row gets dateRange). Default dates: last 28 days to yesterday. Rows come back as { dimension: value, metric: number }, plus totals and row_count.',
+      'action "realtime": request with metrics / dimensions for the last 30 minutes (e.g. activeUsers by country or unifiedScreenName).',
+      'action "metadata": every dimension and metric name this property has, custom ones included; search filters by name.',
+      'Common names: dimensions date, week, sessionDefaultChannelGroup, sessionSource, sessionMedium, sessionCampaignName, landingPage, pagePath, pageTitle, country, city, deviceCategory, browser, newVsReturning, eventName, firstUserSource; metrics sessions, totalUsers, newUsers, activeUsers, screenPageViews, engagedSessions, engagementRate, bounceRate, averageSessionDuration, userEngagementDuration, eventCount, keyEvents, conversions, totalRevenue. On error, Google\'s message comes back with what was sent.',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'report (default), realtime or metadata.' },
+        request: { type: 'object', description: 'The GA4 request body (runReport / runRealtimeReport): dimensions, metrics, dateRanges, dimensionFilter, metricFilter, orderBys, limit, offset, keepEmptyRows, metricAggregations.' },
+        limit: { type: 'number', description: 'Max rows (default 100, max 1000) when request.limit isn\'t set.' },
+        search: { type: 'string', description: 'For metadata: only names containing this word.' },
+      },
+    },
+  },
+  {
+    name: 'gsc',
+    description: [
+      'Asks the brand\'s own Google Search Console directly, with the service account connected in GrowJin (the property for the brand\'s site is picked automatically, domain properties included). Use it when get_gsc_data doesn\'t have the cut you need. Free. Read-only.',
+      'action "query" (default): request = a Search Analytics body, e.g. { "dimensions": ["query", "page"], "startDate": "2026-10-01", "endDate": "2026-10-31", "dimensionFilterGroups": [{ "filters": [{ "dimension": "query", "operator": "contains", "expression": "instagram" }] }], "rowLimit": 200 }. Dimensions: query, page, date, country, device, searchAppearance, hour. Filter operators: equals, notEquals, contains, notContains, includingRegex, excludingRegex. "type": web (default), image, video, news, discover, googleNews. "aggregationType": auto, byPage, byProperty. Default window: last 30 days ending 2 days ago (Search Console runs 2-3 days behind). Rows: the dimensions plus clicks, impressions, ctr_pct, position. Page on with startRow.',
+      'action "inspect" with url: Google\'s own verdict on one page (indexed or not and why, last crawl, Google\'s chosen canonical, robots, mobile usability, rich results).',
+      'action "sitemaps": submitted sitemaps with errors, warnings and when Google last read them. action "sites": every property the service account can see.',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'query (default), inspect, sitemaps or sites.' },
+        request: { type: 'object', description: 'For query: the Search Analytics body (dimensions, startDate, endDate, dimensionFilterGroups, type, aggregationType, rowLimit, startRow, dataState).' },
+        url: { type: 'string', description: 'For inspect: the full page URL.' },
+        limit: { type: 'number', description: 'Max rows (default 100, max 1000) when request.rowLimit isn\'t set.' },
+      },
+    },
+  },
+  {
+    name: 'apify',
+    description: [
+      'Runs an Apify actor with GrowJin\'s account and returns its raw dataset items (no filtering). COSTS MONEY: actors bill per result or per run (cost_usd in the answer shows what it cost; cost_cap_usd is the most this run may charge, set from limit and the actor\'s price), so start with limit 3-5.',
+      'actor: one of the aliases below, or any Apify actor ID ("username~actor-name"). input: the actor\'s own input object (the field names below are the real ones from each actor\'s input schema). limit (default 10, max 50) is set as the actor\'s max-results field and as Apify\'s maxItems; for actors whose input is a URL list, the list is also cut to limit.',
+      'Aliases:',
+      '- "b2b_database": Pre-built B2B contact database (NOT live LinkedIn). Data may be years out of date; verify against live sources. People with title, company, website, LinkedIn URL and work email. Input e.g. { "personTitleIncludes": ["Founder"], "companyIndustryIncludes": ["Internet"], "personLocationCountryIncludes": ["United States"], "companySizeIncludes": ["1-10"] }. ("linkedin" still works as a deprecated name for this alias.)',
+      '- "linkedin_company": live LinkedIn company pages: employee count, founded year, industry, website, HQ, followers. Input { "profileUrls": ["https://www.linkedin.com/company/stripe"] }.',
+      '- "linkedin_people": people at a company matching a job title (name, headline, location, LinkedIn URL), found through Google results, never logs into LinkedIn. Input { "companyName": "Coacha", "jobTitle": "founder" } (maxResults is set from limit; Google SERP proxy is used by default).',
+      '- "instagram": Instagram profiles (bio, followers, external link, latest posts). Input { "usernames": ["natgeo"] }.',
+      '- "facebook": posts from Facebook pages. Input { "startUrls": [{ "url": "https://www.facebook.com/somepage" }] }.',
+      '- "meta_ads": ads a business runs on Facebook / Instagram, from the Meta Ad Library. Input { "urls": [{ "url": "https://www.facebook.com/somepage" }] } (Facebook page URLs or Ad Library search URLs; plain strings are fine), optional "scrapePageAds.activeStatus": "all" | "active" | "inactive", "scrapePageAds.period": "last24h" | "last7d" | "last14d" | "last30d", "scrapePageAds.countryCode": "US". If this actor fails, apify~facebook-ads-scraper runs instead (actor_used and fallback_from say so).',
+      '- "producthunt": Product Hunt launches from leaderboards, topic / category pages or Product Hunt URLs, with product name, description, website, makers (name + links) and public emails where available. Third-party scraper, for evaluation. Move to the official Product Hunt API once commercial permission is granted. Main use, launches for a date or period: { "target": "daily", "startDate": "2026-10-28" } (add "endDate" for a range; or "target": "weekly" with "startWeek": "2026-43", "monthly" with "startMonth": "2026-10"). Or a topic: { "target": "topic", "topicSlugs": ["productivity"] } (one target per run: dates and topics can\'t be combined). Optional: "minUpvotes": 10, "sortBy": "ranking" | "newest" | "votes". Public emails are looked for by default (costs extra per product with an email); set "shouldCollectProductDetailsAndEmails": false to skip them. Only if that run fails, runtime~producthunt-scraper runs instead (actor_used says so): daily leaderboards only, with makers, hunters, websites, social links, upvotes, rankings and lead signals.',
+      '- "contacts": emails, phone numbers and social links a business lists on its own website (home, contact, about…, up to 5 pages, merged into one row per site). The cheapest way to find a lead\'s email. limit = sites. Input { "startUrls": [{ "url": "https://example.com" }] } (plain domains are fine).',
+      '- "x": X / Twitter posts by search phrase, handle or URL. Input { "searchTerms": ["need a social media tool"] } or { "twitterHandles": ["somebrand"] }; optional "sort" ("Latest" by default, or "Top"), "tweetLanguage", "start" / "end" (YYYY-MM-DD). If it comes back empty or fails, a second X scraper is tried with the same input (actor_used says which).',
+      '- "reddit": Reddit posts by search words. Input { "searches": ["best tool for instagram captions"] }, optional "searchCommunityName" (a subreddit without r/), "sort" (new / hot / top / relevance / comments), "time" (hour / day / week / month / year / all). Slow: often 10-20 minutes, so expect RUNNING and call again with run_id. For Reddit leads, Lead Finder\'s own search is faster.',
+      '- "capterra": Capterra reviews of a product (rating, title, pros, cons, date). Reviewers are anonymous, so use it to learn what a competitor\'s users complain about, not for leads. limit = reviews per product. Input { "startUrls": [{ "url": "https://www.capterra.com/p/135003/Slack/reviews/" }] } or { "searchQuery": "social media scheduling" }.',
+      '- "telegram": a Telegram channel\'s info (members, description) plus its latest messages. limit = messages. Input { "startUrls": ["https://t.me/somechannel"] } or { "usernames": ["somechannel"] }.',
+      'Waits up to about 45 seconds: if the run finished it returns { run_id, status: "SUCCEEDED", actor_used, cost_usd, total, items }; if not it returns { run_id, status: "RUNNING" } — call this tool again with only { run_id } to get the results. On failure returns error with Apify\'s message.',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        actor: { type: 'string', description: 'An alias ("contacts", "x", "reddit", "capterra", "telegram", "b2b_database", "linkedin_company", "linkedin_people", "instagram", "facebook", "meta_ads", "producthunt") or an Apify actor ID such as "apify~google-search-scraper". Not needed when passing run_id.' },
+        input: { type: 'object', description: 'The actor\'s input object, with the field names shown for each alias in this tool\'s description.' },
+        limit: { type: 'number', description: 'Max results. Default 10, hard max 50.' },
+        run_id: { type: 'string', description: 'To fetch an earlier run that was still RUNNING: its run_id. Leave actor and input out.' },
+      },
+    },
+  },
+  {
+    name: 'get_lead_settings',
+    description:
+      'Who the user wants as leads, as saved in GrowJin\'s Lead Finder: brand (name, website, what it sells, competitors to never contact), the Lead Finder brief and filters (industry, location, company size, who to contact, leads per search), the ideal-customer card (kind of business, who, how they market, kinds of business to search, good fit / not a fit, example customers), sending settings, how many leads are on the board by status, already_known (domains already on the board, so you don\'t spend on them again) and the last search. Call this FIRST when the user asks you to find leads, then search with dataforseo / hunter / apify, check people with check_contacts, and add the good ones with save_leads. include_playbook: true also returns GrowJin\'s Lead Engine instructions (the step-by-step method and rating scale the app\'s own search follows); use them when finding leads so results match the app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        include_playbook: { type: 'boolean', description: 'true to also get the Lead Engine instructions (long). Use when you are about to search for leads.' },
+      },
+    },
+  },
+  {
+    name: 'check_contacts',
+    description:
+      'Checks people or companies against GrowJin before you contact or save them: for each email or domain says new, already_a_lead (on the Lead Finder board, any status, including ones the user skipped), emailed / scheduled (GrowJin sent or will send them an email in the last 2 years: when and the subject), opted_out (asked not to be emailed) or bounced. A domain matches any address at that domain. Only contact or save "new" ones unless the user says otherwise. Up to 200 emails and 200 domains per call. Free.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        emails: { type: 'array', items: { type: 'string' }, description: 'Email addresses to check.' },
+        domains: { type: 'array', items: { type: 'string' }, description: 'Company domains or website URLs to check, e.g. "bloomsalon.com".' },
+      },
+    },
+  },
+  {
+    name: 'save_leads',
+    description:
+      'Adds leads you found to the user\'s Lead Finder board in GrowJin (Contact directly tab), where they open each one, GrowJin writes the email (or an Instagram / Facebook message when there is no email), and once they approve it GrowJin sends it from their Gmail within the daily limit, with follow-ups that stop when they reply. Repeats, people already emailed and opted out are left out (returned under skipped). Leads rated below Neutral go to "Checked but not kept" (kept_aside). Up to 50 per call. Each lead: company, website, what_it_does (≤ 6 words), location, company_size (≤ 4 words), contact_name, contact_title, email, email_status (verified, found, guessed, generic or none), linkedin, socials ([{ platform, url, activity }], activity ≤ 6 words, e.g. "last post 3 months ago"), signals (object, up to 3 short facts), rating (Very Likely, Likely, Leaning Likely, Uncertain (High), Neutral, Uncertain (Low), Leaning Unlikely, Unlikely, Very Unlikely), why (≤ 15 words, why they would buy), sources ({ discovered_via: "how you found them, a few words" }), not_checked (short nouns). Keep the text short: users find long lead text hard to read. Do not draft the email here; GrowJin writes it when the user opens the lead. Only save when the user asks you to (e.g. "add them to GrowJin").',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        leads: { type: 'array', items: { type: 'object' }, description: 'The leads, in the format above.' },
+        dropped: { type: 'array', items: { type: 'object' }, description: 'Optional. Companies you checked and rejected: [{ company, reason }]. Shown under "Checked but not kept".' },
+      },
+      required: ['leads'],
+    },
+  },
+  {
+    name: 'gmail_status',
+    description:
+      'Whether the user\'s Gmail is connected to GrowJin and Claude may send from it: connected, address (the Gmail address emails go from), can_send (connected with send permission), sending_allowed (the user switched on "Let Claude send email" in GrowJin Settings → Connect Claude), daily_limit, sent_today, left_today, ready_to_send, and problem (what to tell the user when something is missing). Call before send_email, and when the user asks whether email is set up.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'list_leads',
+    description: 'Lists the leads on the user\'s Lead Finder board in GrowJin, best first: who they are, why they fit, their email (or the page to message them on), the email or reply GrowJin wrote for them (written when a lead is first opened; empty until then), and where they are (to_do, queued, sent, replied, posted, skipped, closed). Use for "who should I email today?", "which leads are waiting?", "who did I email?", "what did they say?". status: to_do (default), queued, sent, replied, posted, skipped, closed or all. lane: email (people to email or message), talk (Reddit / Hacker News posts to reply to) or all. search: text in the name, site, email or why. lead_id: one lead in full (with the whole draft). include_text: true for full drafts in the list. limit default 20, max 100. Read-only: to email a lead use send_email (a first email to a lead on the board is sent as that lead).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', description: 'to_do, queued, sent, replied, posted, skipped, closed or all. Defaults to to_do.' },
+        lane: { type: 'string', description: 'email, talk or all. Defaults to all.' },
+        search: { type: 'string', description: 'Optional. Text to look for in the name, website, email or why.' },
+        lead_id: { type: 'string', description: 'Optional. One lead, in full.' },
+        include_text: { type: 'boolean', description: 'Optional. Full email and reply drafts in the list.' },
+        limit: { type: 'number', description: 'Max leads. Defaults to 20, max 100.' },
+      },
+    },
+  },
+  {
+    name: 'list_replies',
+    description: 'Who replied to emails GrowJin sent (Lead Finder, campaigns, follow-ups, pitches), newest first, with what the reply says and what it is (meeting, interested, question, objection, later, other). Only threads GrowJin sent; the rest of the mailbox is never read. show: replies (default, last `days` days, default 14; include_answered: true adds ones already marked answered), due (no reply and the follow-up is due), or all (every thread with its status). thread_id: read one thread\'s last messages (messages, default 4), each with message_id; to answer, call send_email with that thread_id, in_reply_to = the last message_id that isn\'t yours, and the same subject with "Re: ". Read-only.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        show: { type: 'string', description: 'replies, due or all. Defaults to replies.' },
+        days: { type: 'number', description: 'For replies: how far back. Defaults to 14, max 90.' },
+        include_answered: { type: 'boolean', description: 'For replies: also ones already marked answered.' },
+        thread_id: { type: 'string', description: 'Optional. Read this thread\'s messages.' },
+        messages: { type: 'number', description: 'With thread_id: how many of the last messages. Defaults to 4.' },
+        limit: { type: 'number', description: 'Max threads. Defaults to 20, max 100.' },
+      },
+    },
+  },
+  {
+    name: 'send_email',
+    description:
+      'Sends email from the user\'s connected Gmail through GrowJin. Works only when gmail_status says ready_to_send (Gmail connected with send permission AND the user switched on "Let Claude send email" in GrowJin Settings); otherwise nothing is sent and the answer says what is missing. ALWAYS show the user the exact recipient, subject and body first and send only after they say yes in this conversation. Never send to addresses check_contacts reports as opted_out or bounced (GrowJin refuses those anyway); check new people with check_contacts first. One email (to, subject, body) or several with emails (up to 20; within the daily limit). body: plain text (blank line = new paragraph) or simple HTML. To reply in a thread give thread_id (and in_reply_to, the Message-ID header) and the same subject. follow_up_days (optional) adds a follow-up reminder in GrowJin. A first email to someone already on the Lead Finder board is sent as that lead (an opt-out line is added; its automatic follow-ups and reply check take over). Sent emails show in Email Outreach and count as contacted. Returns per email sent / not_sent with the reason, and thread_id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: 'Recipient: "jane@example.com" or "Jane Doe <jane@example.com>".' },
+        subject: { type: 'string', description: 'Subject line.' },
+        body: { type: 'string', description: 'The email: plain text or simple HTML.' },
+        thread_id: { type: 'string', description: 'Optional. Gmail thread id, to reply in that thread.' },
+        in_reply_to: { type: 'string', description: 'Optional. The Message-ID header of the email being replied to.' },
+        follow_up_days: { type: 'number', description: 'Optional. Add a GrowJin reminder to follow up after this many days.' },
+        emails: { type: 'array', items: { type: 'object' }, description: 'Optional. Several emails at once, each { to, subject, body, thread_id?, in_reply_to?, follow_up_days? } (up to 20). Leave the top-level fields out when using this.' },
+      },
+    },
+  },
+  {
+    name: 'log_work',
+    description:
+      'Saves growth work the user did OUTSIDE GrowJin (blogs published, posts that need indexing, community posts and replies, leads or people emailed, directory listings, social posts…) to their work log, so they can ask for it later. Call it when the user tells you they did something and wants it kept ("log this", "save that I posted…", "I sent these leads"); do not log on your own. Log one entry with the fields directly, or many at once with entries (up to 100, e.g. a list of blog URLs). Each entry: kind (blog, community, outreach, listing, social or other; another short word is fine), title (what was done, e.g. "Published: 10 Instagram caption ideas for bakeries", "Replied on r/smallbusiness about scheduling posts", "Emailed Bloom Salon"), url (the blog post, the thread, the person\'s site or email), done_on (YYYY-MM-DD, default today), how (one line on how it was done, e.g. "wrote by hand, posted from Webflow", "sent from my Gmail"), status (done, waiting or follow_up; default done), next_check (YYYY-MM-DD to check on it again, e.g. indexing or a follow-up), notes. Ask for a missing title only if there is no url either; fill the rest from what the user said and leave unknown fields out. An entry whose url is already logged is not added again (returned under already_logged). Returns the saved entries with their ids. Confirm briefly what was saved.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        entries: { type: 'array', description: 'Several entries at once, each an object with the fields below. Leave out to log one entry from the top-level fields.' },
+        kind: { type: 'string', description: 'blog, community, outreach, listing, social or other.' },
+        title: { type: 'string', description: 'What was done, in a few words.' },
+        url: { type: 'string', description: 'Optional. Link to the result, or the person\'s email / site for outreach.' },
+        done_on: { type: 'string', description: 'Optional. YYYY-MM-DD. Defaults to today.' },
+        how: { type: 'string', description: 'Optional. One line on how it was done.' },
+        status: { type: 'string', description: 'Optional. done (default), waiting (e.g. waiting to be indexed or for a reply) or follow_up.' },
+        next_check: { type: 'string', description: 'Optional. YYYY-MM-DD to check on it again.' },
+        notes: { type: 'string', description: 'Optional. Anything else worth keeping.' },
+      },
+    },
+  },
+  {
+    name: 'list_work',
+    description:
+      'Shows the user\'s work log: growth work they did outside GrowJin and asked you to save with log_work. Use when they ask what they did ("what blogs did I publish this month?", "which posts still need indexing?", "who did I email last week?", "what is due for a follow-up?"). Filters: kind, status, from / to (YYYY-MM-DD on done_on), search (text in title, url, how or notes), due=true (not done and next_check is today or earlier). Returns total, counts by kind and status, and the entries newest first (limit default 50, max 500). To check whether logged blog posts are indexed, list them and then use get_gsc_data.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', description: 'Optional. blog, community, outreach, listing, social or other.' },
+        status: { type: 'string', description: 'Optional. done, waiting or follow_up.' },
+        from: { type: 'string', description: 'Optional. YYYY-MM-DD, earliest done_on.' },
+        to: { type: 'string', description: 'Optional. YYYY-MM-DD, latest done_on.' },
+        search: { type: 'string', description: 'Optional. Text to look for in title, url, how or notes.' },
+        due: { type: 'boolean', description: 'Optional. true = only entries not done whose next_check is today or earlier.' },
+        limit: { type: 'number', description: 'Optional. Max entries. Default 50, max 500.' },
+      },
+    },
+  },
+  {
+    name: 'update_work',
+    description:
+      'Changes one entry in the user\'s work log (from list_work or log_work), e.g. mark a blog post as indexed (status done, add_note "indexed"), record a reply, or set a new next_check. Pass only the fields to change; add_note adds a dated line to the notes instead of replacing them. Pass url, how, next_check or notes as an empty string to clear them.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The entry id.' },
+        kind: { type: 'string', description: 'Optional. New kind.' },
+        title: { type: 'string', description: 'Optional. New title.' },
+        url: { type: 'string', description: 'Optional. New url.' },
+        done_on: { type: 'string', description: 'Optional. YYYY-MM-DD.' },
+        how: { type: 'string', description: 'Optional. New how line.' },
+        status: { type: 'string', description: 'Optional. done, waiting or follow_up.' },
+        next_check: { type: 'string', description: 'Optional. YYYY-MM-DD, or empty to clear.' },
+        notes: { type: 'string', description: 'Optional. Replaces the notes.' },
+        add_note: { type: 'string', description: 'Optional. Adds a dated line to the notes.' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'delete_work',
+    description: 'Removes one entry from the user\'s work log, e.g. one logged by mistake. Only when the user asks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The entry id.' },
+      },
+      required: ['id'],
     },
   },
 ]

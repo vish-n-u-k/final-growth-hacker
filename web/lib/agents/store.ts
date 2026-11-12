@@ -9,6 +9,7 @@ import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { changedItems, saveSuggestions } from '@/lib/tool-suggestions'
 import { agentsDemo } from './demo'
 import type { ReplyIntent } from '@/lib/gmail/reply-check'
+import type { SocialCheck } from '@/lib/leads/social-types'
 
 export const LEAD_KEY = 'agent:lead'
 export const SEARCH_KEY = 'agent:search'
@@ -32,10 +33,17 @@ export interface LeadSettings {
   enabled: boolean
   customer: string              // who the brand sells to, in plain words
   country: string               // ISO code (see LOCATION_CODES)
-  // reviews / competitors: no longer used. Competitor reviews are Competitor Leads' job (lib/lead-finder)
   // companies = "Companies like your customers": websites found with DataForSEO, emails with Hunter
-  sources: { reddit: boolean; reviews: boolean; local: boolean; companies: boolean }
-  competitors: string[]
+  // reviews = unhappy reviewers of the competitors in `rivals` (Lead Finder); linkedin = people found
+  // with the LinkedIn search (Apify) using the `linkedin` filters. Every source goes through the same checks
+  sources: { reddit: boolean; reviews: boolean; local: boolean; companies: boolean; linkedin?: boolean }
+  competitors: string[]         // old: no longer used (see rivals)
+  rivals?: Rival[]              // competitors whose unhappy reviewers become leads
+  linkedin?: LinkedInFilters | null
+  // Lead Finder's search (lib/leads/engine.ts): the brief and filters Claude searches with. Set = Lead
+  // Finder finds leads this way, and the daily run no longer runs the old company / Maps / LinkedIn /
+  // review searches (it still checks replies, sends follow-ups and finds Reddit posts)
+  engine?: EngineInputs | null
   localQuery: string            // e.g. "cafés in Pune"
   companyQuery: string          // who to look for among companies, e.g. "small fashion and beauty online stores"
   // GrowJin picked the sources from the brand (pickSources in lead-agent.ts); why = one line for the page
@@ -52,21 +60,46 @@ export interface LeadSettings {
   useBrand?: boolean
 }
 
+/** The last Lead Finder search, kept on the lead data for the page. */
+export interface EngineRunInfo {
+  at: string
+  status: 'done' | 'failed' | 'stopped'
+  summary: string
+  profile?: { sells?: string; must_haves?: string[]; strong_fit?: string[]; disqualifiers?: string[]; excluded_competitors?: string[]; extra_checks?: string[]; pitch_angle?: string; conflicts_or_assumptions?: string[] }
+  toolIssues: string[]
+  added: number
+  costUsd: number
+  error?: string
+}
+
+/** What Lead Finder's search looks for: the user's brief plus five filters. */
+export interface EngineInputs { brief: string; industry: string; location: string; companySize: string; contactRole: string; leadCount: number }
+
+/** A competitor whose reviews are read: Trustpilot by its domain, or its Shopify App Store page. */
+export interface Rival { platform: 'trustpilot' | 'shopify'; url: string }
+/** Who the LinkedIn search looks for. Free text; mapped to the search's own values in lib/leads/linkedin-leads. */
+export interface LinkedInFilters { jobTitles: string[]; industries: string[]; keywords: string[]; countries: string[]; sizes: string[]; technologies: string[]; why?: string }
+
 export type IcpKind = 'ecommerce' | 'saas' | 'local' | 'creator' | 'other'
 export interface Icp {
   kind: IcpKind                 // what kind of business the buyers are: picks the sources
   who: string                   // who they are, in plain words
   marketing: string             // how they market today, e.g. "the founder posts on X and LinkedIn themselves"
+  trades?: string[]             // kinds of business to search for, one at a time ("yoga studio", "candle maker")
   fit: string[]                 // signs of a good fit
   notFit: string[]              // not a fit, e.g. "has a marketing team or agency", "hires creators"
   examples: string[]            // domains of ideal customers the user gave
   by: 'ai' | 'user'
+  // Not posting on social media lately counts in a lead's favour (true for a social media tool's buyers).
+  // Unset: read from the card's words (quietSocialOf in lead-agent.ts)
+  quietSocial?: boolean
 }
 
 // own = added by the user from their own list (Email tab, "Add your own emails")
 // company = a website found with DataForSEO ("Companies like your customers")
 // profile = a seller's page on a marketplace or social network (Etsy shop, Instagram…), messaged by hand
-export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'company' | 'own' | 'profile'
+// linkedin = a person found with the LinkedIn search (Apify); review = an unhappy reviewer of a competitor
+export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'company' | 'own' | 'profile' | 'linkedin'
 export type LeadStatus =
   | 'ready'          // draft waiting for the user's OK
   | 'needs_contact'  // good fit, no email found
@@ -107,11 +140,24 @@ export interface Lead {
   queryId?: string              // source 'company': the search that found it (LeadQuery.id)
   skippedBy?: 'auto'            // skipped by the agent (no longer what you look for), not by the user
   error?: string
+  // What every source fills in the same way (Lead Finder shows them on the lead):
+  role?: string                 // the person's job title (LinkedIn), e.g. "Co-founder"
+  linkedinUrl?: string
+  foundVia?: string             // where it was found, in plain words: "LinkedIn search", "2★ review of Later on Trustpilot"
+  facts?: { k: string; v: string }[]   // Sells / Size / Active / Marketing / Social, in that order
+  emailVia?: string             // how the email was found: "came with the LinkedIn record", "Hunter, from their name"…
+  social?: SocialCheck          // their social accounts and when they last posted (lib/leads/social-check)
+  dm?: { platform: string; url: string }   // no email anywhere: a message on this page instead
+  reviewOn?: 'trustpilot' | 'shopify'      // source 'review': where the review was
+  fitLabel?: string             // Lead Finder's search: its rating, "Very Likely" … "Very Unlikely" (score follows it)
+  notChecked?: string[]         // Lead Finder's search: what wasn't checked, for the user to look at
 }
 
 /** A website found but not checked yet. */
 // profile: the platform ("Etsy") when `domain` is a seller page's link ("etsy.com/shop/candleco"), not a website
-export interface WaitingSite { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string; queryId?: string; visits?: number | null; profile?: string }
+// person: found as a person (LinkedIn search): their company's website is read and checked like any other
+export interface WaitingSite { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string; queryId?: string; visits?: number | null; profile?: string; person?: WaitingPerson }
+export interface WaitingPerson { name: string; role?: string; email?: string; emailShared?: boolean; linkedinUrl?: string; size?: number | null; industry?: string; location?: string }
 
 /**
  * One question the Lead Agent asks DataForSEO for companies, picked with the playbook in
@@ -178,6 +224,12 @@ export interface LeadAgentData {
   // platforms: online-store platforms to search (DataForSEO technology index); [] when the buyers aren't online stores
   companyFilters?: { for: string; keywords: string[]; headcount: string[]; platforms?: string[] }
   plan?: LeadPlan               // the DataForSEO questions for companies, and how each has done
+  // LinkedIn search: how far into the matches for these filters we've read (a new filter starts at 0)
+  linkedinCursor?: { key: string; offset: number }
+  // Competitor reviews: when each rival was last read, and a Trustpilot read still running at DataForSEO
+  reviewReads?: Record<string, { at?: string; task?: string; taskAt?: string }>
+  // Lead Finder's last search (lib/leads/engine.ts): what it understood and what it says
+  engineRun?: EngineRunInfo
   lastRunAt?: string
   lastRunSummary?: string
   lastError?: string | null
@@ -212,7 +264,70 @@ export interface Topic {
   inputs?: { example?: string; number?: string; opinion?: string }
 }
 
-export interface RankRow { keyword: string; volume: number; rank: number; url: string }
+// rank: place among Google's normal results. From Search Console, the average over 28 days, and
+// impressions = how often the site was shown for it then; from DataForSEO, an estimate.
+export interface RankRow { keyword: string; volume: number; rank: number; url: string; impressions?: number; clicks?: number }
+
+// Search & AI page (/search-ai): the keywords the brand is trying to win, judged every week from how
+// they do (lib/search-hub/verdict.ts). Starting keywords and blog topics are added by themselves.
+export interface TrackedKeyword {
+  keyword: string               // lower case
+  addedAt: string
+  by: 'auto' | 'user'
+  status: 'active' | 'dropped'
+  droppedAt?: string
+  swappedFrom?: string          // the keyword it replaced
+  swappedTo?: string            // dropped by a swap: the keyword that replaced it
+  heldUntil?: string            // "Keep it" on a suggested change: no new suggestion before this date
+}
+
+// One research's result for each tracked keyword. rank null = not found (outside Search Console's
+// data, or outside DataForSEO's list). ai: whether Google's AI Overview named the brand (when asked).
+export interface KeywordPoint { rank: number | null; url?: string; clicks?: number; impressions?: number; ai?: boolean }
+export interface RankSnapshot {
+  at: string
+  source: 'gsc' | 'labs'
+  clicks?: number               // Search Console only: clicks on every search, last 28 days
+  rows: Record<string, KeywordPoint>
+  // Buyer questions asked to ChatGPT, Perplexity and Gemini this check: answers that named the brand
+  questions?: Record<string, { hits: number; samples: number }>
+}
+
+// Search & AI page: the brand's homepage and main pages, read at every check (lib/search-hub/pages.ts)
+export interface SitePage {
+  path: string
+  url: string
+  title: string
+  h1: string
+  h2s: string[]
+  meta: string
+  keyword: string | null        // the search the page targets (AI, from its title / H1 / headings), null = none
+  keywordBy?: 'auto' | 'user'   // 'user' = set by "I've made this change"; not re-guessed
+  keyFor?: string               // the title|h1|h2s the keyword was worked out from
+  volume?: number               // searches a month for `keyword` (0 = too few to measure)
+  difficulty?: number | null
+  volFor?: string               // the keyword volume / difficulty were looked up for
+  // Easier versions of a search that's too hard for the site (Labs keyword_suggestions), for `altsFor`
+  alts?: { keyword: string; volume: number; difficulty: number | null }[]
+  altsFor?: string
+  readAt: string
+  // New wording suggested for the page (written on open), for this keyword and verdict
+  sugg?: { for: string; at: string; items: { tag: 'Title' | 'H1' | 'H2' | 'Meta'; text: string }[] }
+}
+
+// A change the brand made (found at a check, or told us): judged after 6 weeks
+export interface SiteChange {
+  id: string
+  area: 'seo' | 'geo'
+  path?: string                 // seo: the page
+  keyword?: string              // seo: the search it should move
+  question?: string             // geo: the buyer question
+  what: string                  // "New H1", "New title", "FAQ added"…
+  at: string
+  by: 'auto' | 'user'
+  before: number | null         // seo: Google position then (null = not found); geo: % of answers that named the brand
+  status: 'testing' | 'stopped'
+}
 
 // A keyword idea from the last research, with why it was or wasn't picked (Keywords tab)
 export type IdeaVerdict = 'picked' | 'fit' | 'broad' | 'hard' | 'off' | 'unknown' | 'small' | 'branded' | 'unchecked'
@@ -225,6 +340,7 @@ export interface AiAnswer {
   mentioned: boolean
   position: number | null       // 1 = named first among the brands we track
   brands: string[]              // tracked brands named, in order
+  others?: string[]             // other products the answer recommends as options (untracked rivals)
   citations: { domain: string; url: string; title: string }[]
   // The same question is asked more than once (answers vary): how often the brand was named
   samples?: number
@@ -247,7 +363,8 @@ export interface AdsTip { kind: 'try-ads' | 'wasted'; title: string; detail: str
 
 // A site that should link to (or list) the brand: it links to competitors, or lists them in a
 // "best X" / "X alternatives" article, but leaves the brand out. Found weekly, pitched from Gmail.
-export type LinkSource = 'gap' | 'list'
+// 'cited': a site AI answers keep citing, turned into a pitch from a "Get mentioned on" to-do
+export type LinkSource = 'gap' | 'list' | 'cited'
 export type LinkStatus =
   | 'new'        // found, no email yet (contact page only)
   | 'ready'      // pitch drafted and an email found: waiting for the user
@@ -282,15 +399,26 @@ export interface LinkOpportunity {
 export interface SearchAgentData {
   settings: SearchSettings
   topics: Topic[]
-  ranks: { at: string; rows: RankRow[] } | null
+  // source: 'gsc' = Google Search Console (real), 'labs' (or missing) = DataForSEO's estimate
+  ranks: { at: string; rows: RankRow[]; source?: 'gsc' | 'labs' } | null
   ideas?: { at: string; rows: IdeaRow[] } | null   // keyword ideas from the last research
   rankChanges: RankChange[]
+  tracked?: TrackedKeyword[]      // keywords the Search & AI page follows week by week
+  rankHistory?: RankSnapshot[]    // one per research, oldest first (last 16 kept)
+  pages?: SitePage[]              // homepage + main pages (Search & AI page)
+  changes?: SiteChange[]          // changes being tested (newest last, last 40 kept)
+  hubOnAt?: string                // when the Search & AI page first switched the weekly check on
   answers: { at: string; items: AiAnswer[] } | null
   mentionHistory: { at: string; mentioned: number; asked: number }[]
+  // Each buyer question's last result (questions rotate, so a gap "holds" when it was there the last
+  // time that question was asked): gap = a rival was named and the brand never was
+  questionLog?: Record<string, { at: string; gap: boolean }>
+  questionRound?: number        // researches so far, for taking the buyer questions in turns
   description: { text: string; issue: string | null; at: string } | null
   tasks: AgentTask[]
   adsTips: AdsTip[]
   links?: LinkOpportunity[]     // link opportunities (lib/agents/link-opportunities.ts)
+  rivalCheck?: Record<string, boolean>  // suggested site → does it sell a product like the brand's (AI, checked once)
   demo?: boolean                // made with demo data (lib/agents/demo.ts)
   lastResearchAt?: string
   lastWriteAt?: string
@@ -427,7 +555,7 @@ export async function updateSearchData(brandId: string, fallback: () => SearchAg
 export interface UsageMeter { dataforseo: number; hunter: number; apis: Record<string, number>; hunterOut?: boolean }
 export const newMeter = (): UsageMeter => ({ dataforseo: 0, hunter: 0, apis: {} })
 
-export type UsageTool = 'Lead Agent' | 'Search Agent' | 'Competitor Leads'
+export type UsageTool = 'Lead Agent' | 'Search Agent' | 'Competitor Leads' | 'Claude (MCP)' | 'Foundation' | 'Ask'
 export interface UsageMonth {
   dataforseo: number
   hunter: number

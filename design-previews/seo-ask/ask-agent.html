@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ask: Claude with every tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Preview: no old pages. Every tool is a workspace that opens over Ask (right panel, full screen on phones).
+     Same look as ask-app-flow-v2: paper, ink, one blue for the next step, red only for replies. */
+  :root {
+    --page: #ecebe6; --bg: #f7f7f5; --card: #ffffff; --ink: #111111; --sub: #5f5f5a; --faint: #9a9a93; --line: #e6e5e0;
+    --blue: #3355ff; --blue-soft: #eef1ff; --blue-ink: #2238c4; --red: #e5484d; --red-soft: #fdecec; --grey: #d9d8d2; --grey2: #b4b3ac;
+    --font: 'Geist', system-ui, sans-serif; --mono: 'Geist Mono', ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --page: #08080a; --bg: #0e0e10; --card: #17171a; --ink: #f2f2f0; --sub: #a6a6a0; --faint: #6e6e69; --line: #2a2a2e;
+    --blue: #7b93ff; --blue-soft: #1b2142; --blue-ink: #a9b8ff; --red: #ff6b6b; --red-soft: #3a1d1f; --grey: #34343a; --grey2: #55555c; color-scheme: dark } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--page); color: var(--ink); font: 400 15px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+  /* storyboard chrome */
+  .story { position: sticky; top: 0; z-index: 20; background: var(--page); border-bottom: 1px solid var(--line); padding: max(12px, env(safe-area-inset-top, 0px)) 16px 12px; }
+  .story-in { max-width: 1320px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .stepbar { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1; }
+  .stepbar::-webkit-scrollbar { display: none; }
+  .st { display: flex; align-items: center; gap: 7px; padding: 6px 12px 6px 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; cursor: pointer; white-space: nowrap; color: var(--sub); }
+  .st b { width: 20px; height: 20px; border-radius: 50%; background: var(--bg); display: grid; place-items: center; font: 500 11px var(--mono); color: var(--faint); }
+  .st[aria-current="step"] { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  .st[aria-current="step"] b { background: var(--card); color: var(--ink); }
+  .stage { max-width: 1320px; margin: 0 auto; padding: 18px 16px 60px; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+  @media (max-width: 1000px) { .stage { grid-template-columns: 1fr; } }
+  .how { position: sticky; top: 72px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px 18px 8px; }
+  @media (max-width: 1000px) { .how { position: static; } }
+  .how h2 { margin: 4px 0 2px; font-size: 18px; font-weight: 600; }
+  .how p.s { margin: 0; color: var(--sub); font-size: 14px; }
+  .how ul { margin: 12px 0 0; padding: 0; list-style: none; }
+  .how li { padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--sub); }
+  .how li b { color: var(--ink); font-weight: 600; }
+
+  /* app window */
+  .win { position: relative; background: var(--bg); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.08); height: 780px; display: flex; flex-direction: column; }
+  @media (max-width: 700px) { .win { height: 820px; } }
+  .chrome { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-bottom: 1px solid var(--line); flex: none; }
+  .chrome i { width: 10px; height: 10px; border-radius: 50%; background: var(--grey); }
+  .url { margin-left: 10px; padding: 2px 12px; border-radius: 7px; background: var(--card); font: 12px var(--mono); color: var(--faint); }
+  .scroll { flex: 1; overflow: auto; position: relative; }
+  .appbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; }
+  .mark { display: flex; align-items: center; gap: 9px; font-weight: 600; border: 0; background: none; cursor: pointer; padding: 0; }
+  .mark i { width: 24px; height: 24px; border-radius: 7px; background: #16a34a; display: grid; place-items: center; color: #fff; font-style: normal; font-size: 13px; }
+  .who { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sub); position: relative; }
+  .pill { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
+  .av { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-weight: 600; font-size: 13px; }
+  .menu { position: absolute; right: 0; top: 38px; z-index: 5; width: 210px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 16px 40px rgba(0,0,0,.12); }
+  .menu button { display: block; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-radius: 9px; background: none; cursor: pointer; font-size: 14px; }
+  .menu button:hover { background: var(--bg); }
+  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+  .col { max-width: 720px; margin: 0 auto; padding: 4px 22px 60px; }
+  .fade { animation: up .25s ease both; }
+  @keyframes up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  h1 { margin: 0; font-size: 34px; line-height: 1.12; font-weight: 600; letter-spacing: -.025em; }
+  .lede { margin: 8px 0 0; color: var(--sub); font-size: 16px; }
+  .k { font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+  .btn { height: 40px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-weight: 500; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.do { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn.sm { height: 34px; padding: 0 12px; font-size: 13.5px; border-radius: 10px; }
+  .tl { border: 0; background: none; padding: 0; color: var(--sub); cursor: pointer; font-size: 14px; text-decoration: underline; text-decoration-color: var(--grey2); text-underline-offset: 3px; }
+
+  /* home */
+  .hello { padding-top: 5vh; text-align: center; }
+  .ask { display: flex; align-items: center; gap: 10px; margin-top: 22px; padding: 8px 8px 8px 18px; border: 1px solid var(--line); border-radius: 20px; background: var(--card); box-shadow: 0 10px 30px rgba(0,0,0,.05); text-align: left; }
+  .ask input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 16px; height: 40px; }
+  .send { width: 40px; height: 40px; flex: none; border-radius: 13px; border: 0; background: var(--ink); color: var(--card); cursor: pointer; font-size: 18px; }
+  .dos { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
+  .doc { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13.5px; color: var(--ink); cursor: pointer; }
+  .doc:hover { border-color: var(--grey2); }
+  .doc em { font-style: normal; font: 12px var(--mono); color: var(--faint); }
+  .reply { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 26px; padding: 13px 16px; border: 0; border-radius: 16px; background: var(--red-soft); text-align: left; cursor: pointer; }
+  .reply i { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
+  .reply b { display: block; font-weight: 600; }
+  .reply span { font-size: 14px; color: var(--sub); }
+  .reply .go { margin-left: auto; white-space: nowrap; }
+  .sec { margin-top: 28px; }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+  @media (max-width: 760px) { .cards { grid-template-columns: 1fr 1fr; } }
+  .cd { display: flex; flex-direction: column; gap: 6px; min-height: 108px; padding: 14px 15px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); text-align: left; cursor: pointer; }
+  .cd .t { font-size: 14px; font-weight: 500; line-height: 1.3; }
+  .cd .n { margin-top: auto; font-size: 26px; font-weight: 600; letter-spacing: -.02em; line-height: 1; }
+  .cd .n small { font-size: 12.5px; font-weight: 400; color: var(--faint); margin-left: 5px; }
+
+  /* answer */
+  .back { border: 0; background: none; padding: 0; cursor: pointer; color: var(--sub); font-size: 14px; }
+  .say { margin: 14px 0 0; font-size: 19px; line-height: 1.5; }
+  .todo { display: flex; align-items: center; gap: 16px; margin-top: 22px; padding: 16px 18px; border-radius: 16px; background: var(--blue-soft); }
+  .todo div { flex: 1; min-width: 0; }
+  .todo b { display: block; font-weight: 600; }
+  .todo span { font-size: 14px; color: var(--sub); }
+  .tag { display: inline-block; margin-top: 18px; padding: 3px 9px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font: 12px var(--mono); color: var(--faint); }
+
+  /* workspace panel */
+  .veil { position: absolute; inset: 0; pointer-events: auto; background: rgba(0,0,0,.18); animation: fd .2s both; }
+  @keyframes fd { from { opacity: 0; } }
+  .sheet { pointer-events: auto; position: absolute; top: 0; right: 0; bottom: 0; width: min(600px, 100%); overflow-y: auto; background: var(--bg); border-left: 1px solid var(--line); box-shadow: -20px 0 60px rgba(0,0,0,.08); animation: sl .28s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes sl { from { transform: translateX(30px); opacity: 0; } }
+  .sh { padding: 16px 22px 40px; }
+  .sh-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .x { width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); cursor: pointer; }
+  .sh h2 { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 600; letter-spacing: -.02em; }
+  .quiet { margin: 6px 0 0; color: var(--sub); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+  .quiet .dot { color: var(--grey2); }
+  .tabs { display: flex; gap: 18px; margin-top: 18px; border-bottom: 1px solid var(--line); }
+  .tab { padding: 8px 0; border: 0; background: none; cursor: pointer; color: var(--sub); font-size: 14px; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab[aria-selected="true"] { color: var(--ink); border-color: var(--ink); font-weight: 500; }
+  .start { margin-top: 16px; padding: 16px; border-radius: 16px; background: var(--blue-soft); display: flex; gap: 14px; align-items: center; }
+  .start div { flex: 1; min-width: 0; }
+  .start b { display: block; font-weight: 600; }
+  .start span { font-size: 14px; color: var(--sub); }
+  .rows { margin-top: 12px; }
+  .row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+  .row div { flex: 1; min-width: 0; }
+  .row b { display: block; font-weight: 500; }
+  .row span { font-size: 13.5px; color: var(--sub); }
+  .row small { font: 12px var(--mono); color: var(--faint); white-space: nowrap; }
+  .row.red b::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--red); vertical-align: 2px; }
+  .lnk { margin-top: 14px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .fld { margin-top: 14px; }
+  .fld label { display: block; font-size: 13px; color: var(--sub); margin-bottom: 5px; }
+  .fld input, .fld textarea, .fld select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); outline: none; }
+  .fld textarea { min-height: 90px; resize: vertical; line-height: 1.5; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; }
+  .acts { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; margin-top: 18px; }
+  .mail { margin-top: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+  .mail .to { padding: 11px 14px; border-bottom: 1px solid var(--line); font-size: 13.5px; color: var(--sub); }
+  .mail input { width: 100%; border: 0; border-bottom: 1px solid var(--line); padding: 11px 14px; background: none; outline: none; font-weight: 500; }
+  .mail textarea { width: 100%; min-height: 170px; border: 0; padding: 12px 14px; background: none; outline: none; resize: vertical; line-height: 1.55; }
+  .facts { margin: 12px 0 0; padding: 0; list-style: none; }
+  .facts li { display: grid; grid-template-columns: 80px 1fr; gap: 10px; padding: 6px 0; font-size: 14px; }
+  .facts li span { color: var(--faint); font-size: 13px; }
+  .steps3 { display: flex; gap: 8px; margin-top: 14px; }
+  .s3 { flex: 1; padding: 6px 0; border-top: 2px solid var(--line); font-size: 12.5px; color: var(--faint); }
+  .s3.on { border-color: var(--ink); color: var(--ink); }
+  .ticks { list-style: none; margin: 16px 0 0; padding: 0; }
+  .ticks li { display: flex; align-items: center; gap: 10px; padding: 7px 0; color: var(--faint); font-size: 14px; }
+  .ticks li.on { color: var(--ink); } .ticks li.done { color: var(--sub); }
+  .ticks li small { margin-left: auto; font: 12px var(--mono); }
+  .tk { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 1.5px solid var(--line); }
+  .on .tk { border-color: var(--grey2); border-top-color: var(--blue); animation: spin .8s linear infinite; }
+  .done .tk { border-color: var(--ink); background: var(--ink); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .done-box { padding: 50px 10px; text-align: center; }
+  .done-box .ok { width: 44px; height: 44px; margin: 0 auto 12px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: var(--card); }
+  .note { margin-top: 12px; font-size: 13.5px; color: var(--sub); }
+  .sw { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .sw b { display: block; font-weight: 500; }
+  .sw span { font-size: 13px; color: var(--sub); }
+  .tg { width: 40px; height: 24px; border-radius: 99px; border: 0; background: var(--grey); position: relative; cursor: pointer; flex: none; }
+  .tg::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .tg[aria-pressed="true"] { background: var(--ink); }
+  .tg[aria-pressed="true"]::after { left: 19px; }
+  .toast { pointer-events: none; position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 9px 14px; border-radius: 12px; background: var(--ink); color: var(--card); font-size: 13.5px; animation: up .2s both; z-index: 9; }
+
+  /* agent preview */
+  .q { margin-top: 14px; font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+  .meant { margin: 6px 0 0; color: var(--sub); font-size: 14.5px; }
+  .meant b { color: var(--ink); font-weight: 500; }
+  .task { margin-top: 18px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+  .task-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .task-h b { font-weight: 600; }
+  .task-h small { font: 12px var(--mono); color: var(--faint); }
+  .meter { height: 6px; border-radius: 99px; background: var(--bg); margin-top: 10px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--ink); border-radius: 99px; transition: width .4s; }
+  .tool { font: 11.5px var(--mono); color: var(--faint); margin-left: 6px; }
+  .leads { margin-top: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); padding: 4px 16px; }
+  .lr { display: flex; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .lr:first-child { border-top: 0; }
+  .lr input { width: 16px; height: 16px; accent-color: var(--ink); }
+  .lr div { flex: 1; min-width: 0; }
+  .lr b { display: block; font-weight: 500; }
+  .lr span { font-size: 13.5px; color: var(--sub); }
+  .lr em { font-style: normal; font: 12px var(--mono); color: var(--faint); white-space: nowrap; }
+  .approve { margin-top: 14px; padding: 16px 18px; border-radius: 16px; background: var(--blue-soft); }
+  .approve b { display: block; font-weight: 600; }
+  .approve p { margin: 2px 0 12px; font-size: 14px; color: var(--sub); }
+  .approve .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .done-line { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); font-size: 14px; }
+  .mailcard { margin-top: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+  .mailcard .to { padding: 9px 14px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--sub); display: flex; justify-content: space-between; }
+  .mailcard p { margin: 0; padding: 10px 14px; font-size: 14px; white-space: pre-line; }
+  .bars2 { margin-top: 12px; }
+  .bar2 { display: grid; grid-template-columns: 130px 1fr 40px; gap: 10px; align-items: center; font-size: 13.5px; padding: 4px 0; }
+  .bar2 i { display: block; height: 8px; border-radius: 99px; background: var(--grey); }
+  .bar2 i.s { background: var(--blue); }
+  .follow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .follow button { padding: 7px 12px; border-radius: 999px; border: 1px dashed var(--grey2); background: none; font-size: 13.5px; color: var(--sub); cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="story"><div class="story-in"><div class="stepbar" id="steps"></div></div></div>
+<div class="stage">
+  <div class="win">
+    <div class="chrome"><i></i><i></i><i></i><span class="url">growjin.com/ask</span></div>
+    <div class="scroll" id="app"></div>
+  </div>
+  <aside class="how" id="how"></aside>
+</div>
+<script>
+const STEPS = [
+  ['ask', 'Type anything'],
+  ['work', 'Claude plans and works'],
+  ['leads', 'Results you can act on'],
+  ['emails', 'Approve before sending'],
+  ['sent', 'Done, and it keeps track'],
+  ['quick', 'A quick question'],
+]
+const HOW = {
+  ask: ['One box, no fixed rules', 'Whatever you type goes to Claude with every GrowJin tool. Nothing is matched by keywords any more.', [
+    '<b>Questions</b> ("why did visits drop?") and <b>jobs</b> ("get me leads from X", "email everyone who replied") go to the same place.',
+    'Claude works out what you mean and which tools to use, the same way it does in the Claude connector.',
+    'Ready answers stay below as this morning’s summary.']],
+  work: ['A job runs as a task', 'Long jobs keep going in the background, with each step shown as it happens.', [
+    'First line: <b>what Claude took you to mean</b>, so you can correct it early.',
+    'Each step names the tool it used (X search, Hunter, your contacts).',
+    '<b>A spending cap per task</b> (here $3) and a <b>Stop</b> button that keeps what’s found.',
+    'You can close Ask; the task carries on and the result waits for you.']],
+  leads: ['Results you can act on', 'The answer isn’t just text: the leads come as a list you can pick from.', [
+    'Each one: who, one line on why, how to reach them (email, or a message on X).',
+    'Nothing is saved yet. <b>Add to my list</b> is the approval (save_leads).',
+    'Untick any you don’t want.',
+    '<b>Download (CSV)</b> saves the ticked leads with their emails, without adding them.']],
+  emails: ['Nothing goes out without you', 'Claude writes the emails; you approve each, or all at once.', [
+    'Edit any email before sending.',
+    'Sending uses your Gmail and your daily limit (send_email); follow-ups go out by themselves and stop when they reply.',
+    'People on X without an email get a message to copy and post yourself.']],
+  sent: ['Done, and it keeps track', 'The task ends with what happened and what’s next.', [
+    'Sent emails and their replies show up in Email; leads in Leads.',
+    'Suggested next steps are about this result.',
+    'The task’s cost shows here and in Usage.']],
+  quick: ['A quick question stays quick', 'Same box, same Claude: it just doesn’t need a task.', [
+    'Reads your data (Search Console, Analytics, leads, replies) and answers in seconds.',
+    'Numbers are checked against the data, as now.',
+    'A blue next step, which can itself start a job.']],
+}
+let S = { step: 'ask', t0: 0, picked: [true, true, true, true, true, true, true, true, true], sent: 0 }
+const LEADS = [
+  ['Mia’s Bakes', '@miasbakes · posts “I hate making Instagram posts, any tool?”', 'email'],
+  ['Northside Yoga', '@northsideyoga · owner asks for help planning content', 'email'],
+  ['Clay & Co', '@clayandco_uk · small pottery shop, posts twice a month', 'email'],
+  ['Fern Florist', '@fernflorist · “need an easier way to make reels”', 'email'],
+  ['Jade Hair Studio', '@jadehairstudio · new salon, few posts', 'X message'],
+  ['Wick & Wax', '@wickandwax · candle maker, asked about post tools', 'X message'],
+  ['Little Loaf', '@littleloafcafe · café, posts look hand-made', 'X message'],
+  ['Studio Nine', '@studio9pilates · pilates studio, quiet since June', 'X message'],
+  ['Bloom Rooms', '@bloomroomsflowers · florist, asked for caption ideas', 'X message'],
+]
+const WORK = [
+  ['Reading your setup: what Frekto sells, who buys, who to avoid', 'get_lead_settings'],
+  ['Searching X for small businesses asking for help with posts', 'apify · tweet-scraper'],
+  ['Reading 64 posts and 38 profiles', 'apify'],
+  ['Keeping 9 that fit: small, selling to locals, posting rarely', ''],
+  ['Finding emails from the websites in their bios', 'hunter'],
+  ['Leaving out anyone you’ve already contacted', 'check_contacts'],
+]
+// The ticked leads as a CSV: name, X handle, how to reach them, email, why
+function downloadLeads() {
+  const rows = [['company', 'x_handle', 'reach_by', 'email', 'why']]
+  LEADS.forEach((l, i) => {
+    if (!S.picked[i]) return
+    const handle = l[1].split(' · ')[0]
+    rows.push([l[0], handle, l[2], l[2] === 'email' ? 'hello@' + handle.slice(1) + '.com' : '', l[1].split(' · ')[1] || ''])
+  })
+  const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n')
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+  a.download = 'leads-x-' + new Date().toISOString().slice(0, 10) + '.csv'
+  a.click()
+}
+function go(s) { S.step = s; if (s === 'work') S.t0 = Date.now(); render() }
+const box = (v) => `<form class="ask" onsubmit="event.preventDefault();go('work')"><input value="${v || ''}" placeholder="Ask anything, or tell it what to do…"><button class="send">↑</button></form>`
+function view() {
+  const s = S.step
+  if (s === 'ask') return `<div class="col fade"><div class="hello"><h1>What do you want to know or do?</h1><p class="lede">About Frekto. Ask a question, or tell it what to do.</p>${box('get me leads from X')}<p class="lede" style="font-size:13.5px;margin-top:10px">Press ↑ to see what happens</p></div>
+    <div class="sec"><span class="k">Ready this morning</span><div class="cards"><button class="cd"><span class="t">Did anyone reply?</span><span class="n">2<small>replies</small></span></button><button class="cd"><span class="t">Who should I email today?</span><span class="n">6<small>ready</small></span></button><button class="cd" onclick="go('quick')"><span class="t">Am I on track?</span><span class="n">−18%<small>visits</small></span></button></div></div></div>`
+  if (s === 'work') {
+    const n = Math.min(WORK.length, Math.floor((Date.now() - S.t0) / 1300))
+    if (n < WORK.length) setTimeout(render, 500)
+    const spent = (0.12 + n * 0.18).toFixed(2)
+    return `<div class="col" style="padding-top:18px"><button class="back" onclick="go('ask')">← Home</button>
+      <div class="q">get me leads from X</div>
+      <p class="meant">Took it to mean: <b>find small businesses on X (Twitter) that struggle with social posts and would use Frekto</b>. <button class="tl" style="font-size:13.5px">Not quite?</button></p>
+      <div class="task"><div class="task-h"><b>${n < WORK.length ? 'Working on it…' : '9 leads found'}</b><small>$${spent} of $3.00 cap · ${Math.round((Date.now() - S.t0) / 1000)} s</small></div>
+        <div class="meter"><i style="width:${Math.round(n / WORK.length * 100)}%"></i></div>
+        <ul class="ticks">${WORK.map((w, i) => `<li class="${i < n ? 'done' : i === n ? 'on' : ''}"><span class="tk"></span>${w[0]}${w[1] ? `<span class="tool">${w[1]}</span>` : ''}</li>`).join('')}</ul>
+        <div class="acts" style="margin-top:8px">${n < WORK.length ? '<button class="btn sm">Stop and keep what’s found</button><span class="note" style="margin:0">You can close this; it keeps going.</span>' : '<button class="btn do" onclick="go(\'leads\')">See the 9 leads</button>'}</div>
+      </div></div>`
+  }
+  if (s === 'leads') {
+    const k = S.picked.filter(Boolean).length
+    return `<div class="col fade" style="padding-top:18px"><button class="back" onclick="go('ask')">← Home</button>
+      <div class="q">get me leads from X</div>
+      <p class="say" style="font-size:17px"><b>9 small businesses on X</b> are asking for help with their posts. <b>4 have an email</b> on their website; the other 5 you can message on X.</p>
+      <div class="leads">${LEADS.map((l, i) => `<label class="lr"><input type="checkbox" ${S.picked[i] ? 'checked' : ''} onchange="S.picked[${i}]=this.checked;render()"><div><b>${l[0]}</b><span>${l[1]}</span></div><em>${l[2]}</em></label>`).join('')}</div>
+      <div class="approve"><b>Add ${k} to your leads?</b><p>Nothing is saved until you say so. Then Claude writes the emails and messages.</p>
+        <div class="row"><button class="btn do" onclick="go('emails')">Add ${k} and write the emails</button><button class="btn">Just add them</button><button class="btn" onclick="downloadLeads()">Download (CSV)</button><button class="tl">Search again, differently</button></div></div>
+      <p class="note">Task cost $1.20 · searched X, read 38 profiles, 4 email lookups</p></div>`
+  }
+  if (s === 'emails') return `<div class="col fade" style="padding-top:18px"><button class="back" onclick="go('leads')">← The leads</button>
+      <div class="q">4 emails ready for your OK</div>
+      <p class="meant">Saved 9 leads. Written from what each one posted on X. Edit any of them.</p>
+      ${LEADS.slice(0, 2).map(l => `<div class="mailcard"><div class="to"><span>To ${l[0]}</span><button class="tl" style="font-size:13px">Edit</button></div><p>Hi ${l[0].split(' ')[0].replace(/’s$/, '')},\n\nSaw your post about Instagram taking too long. Frekto turns one photo into a ready post in a minute.\n\nWant three made for you, free?\n\nFrekto</p></div>`).join('')}
+      <p class="note">And 2 more · 5 messages for X to copy and post yourself</p>
+      <div class="approve"><b>Send 4 emails from vishnu@frekto.ai?</b><p>11 left today. Follow-ups go out by themselves and stop when they reply.</p>
+        <div class="row"><button class="btn do" onclick="go('sent')">Send 4 emails</button><button class="btn">Go through them one by one</button><button class="tl">Not now</button></div></div></div>`
+  if (s === 'sent') return `<div class="col fade" style="padding-top:18px"><button class="back" onclick="go('ask')">← Home</button>
+      <div class="q">Done</div>
+      <div class="done-line">✓ 9 leads added · ✓ 4 emails sent · 5 X messages ready to post</div>
+      <p class="say" style="font-size:17px">Replies will show under <b>Did anyone reply?</b> each morning. The X messages are in <b>Leads → Join conversations</b>.</p>
+      <div class="follow"><button>Find more from X next week</button><button>Who else posts like Mia’s Bakes?</button><button>Show me the X messages</button></div>
+      <p class="note">Total $1.31 · in Settings → Usage as “Ask”</p>
+      <div style="margin-top:22px">${box('')}</div></div>`
+  return `<div class="col fade" style="padding-top:18px"><button class="back" onclick="go('ask')">← Home</button>
+      <div class="q">why did visits drop last week?</div>
+      <p class="meant">Took it to mean: <b>website visits 3–9 Nov vs 27 Oct–2 Nov, and what changed</b>. 3 lookups · 9 s</p>
+      <p class="say" style="font-size:17px">Visits fell <b>18%</b>, almost all from <b>Google</b>: your /pricing page dropped from #6 to #14 for “ai post maker”.</p>
+      <div class="bars2"><div class="bar2">Google<i class="s" style="width:40%"></i>−112</div><div class="bar2">Instagram<i style="width:6%"></i>−9</div><div class="bar2">Direct<i style="width:3%"></i>+4</div></div>
+      <div class="todo"><div><b>Rewrite the /pricing page title</b><span>It lost two places when you changed it on 1 Nov.</span></div><button class="btn do">Write it</button></div>
+      <div class="follow"><button>Which searches did it lose?</button><button>Was it the same last month?</button></div></div>`
+}
+function render() {
+  document.getElementById('steps').innerHTML = STEPS.map(([id, t], i) => `<button class="st" aria-current="${S.step === id ? 'step' : 'false'}" onclick="go('${id}')"><b>${i + 1}</b>${t}</button>`).join('')
+  const h = HOW[S.step]
+  document.getElementById('how').innerHTML = `<span class="k">How it works</span><h2>${h[0]}</h2><p class="s">${h[1]}</p><ul>${h[2].map(x => `<li>${x}</li>`).join('')}</ul>`
+  document.getElementById('app').innerHTML = `<div class="appbar"><button class="mark" onclick="go('ask')"><i>↗</i>GrowJin</button><div class="who"><span class="pill">frekto.ai</span></div></div>` + view()
+}
+render()
+</script>
+</body>
+</html>

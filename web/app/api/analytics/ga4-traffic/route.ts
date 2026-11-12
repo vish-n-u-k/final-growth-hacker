@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { classifyChannel, hostOfUrl, rootDomain } from '@/lib/posthog/channel'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -90,8 +91,8 @@ export async function GET(request: NextRequest) {
   const metrics = [{ name: 'activeUsers' }, { name: 'newUsers' }]
   const sessionMetrics = [{ name: 'sessions' }]
 
-  // 8 calls — under GA4's 10 concurrent limit
-  const [statsRows, trendRows, newVsRetRows, channelRows, landingRows, deviceRows, countryRows, browserRows] = await Promise.all([
+  // 9 calls — under GA4's 10 concurrent limit
+  const [statsRows, trendRows, newVsRetRows, channelRows, landingRows, deviceRows, countryRows, browserRows, sourceRows] = await Promise.all([
     report(token, pid, { dateRanges: [dateRange], metrics }),
     report(token, pid, {
       dateRanges: [dateRange],
@@ -114,7 +115,7 @@ export async function GET(request: NextRequest) {
     report(token, pid, {
       dateRanges: [dateRange],
       dimensions: [{ name: 'landingPage' }],
-      metrics: sessionMetrics,
+      metrics: [{ name: 'sessions' }, { name: 'newUsers' }],
       orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
       limit: 10,
     }),
@@ -134,9 +135,17 @@ export async function GET(request: NextRequest) {
     report(token, pid, {
       dateRanges: [dateRange],
       dimensions: [{ name: 'browser' }],
-      metrics: sessionMetrics,
+      metrics: [{ name: 'sessions' }, { name: 'newUsers' }],
       orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
       limit: 8,
+    }),
+    // Every source / medium, grouped below into AI tools, social media, search…
+    report(token, pid, {
+      dateRanges: [dateRange],
+      dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
+      metrics: [{ name: 'sessions' }, { name: 'newUsers' }],
+      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+      limit: 250,
     }),
   ])
 
@@ -163,6 +172,7 @@ export async function GET(request: NextRequest) {
   const landingPages = landingRows.map(r => ({
     page: r.dimensionValues?.[0]?.value ?? '/',
     sessions: n(r, 0),
+    newUsers: n(r, 1),
     pct: Math.round((n(r, 0) / totalLandingSessions) * 100),
   }))
 
@@ -184,11 +194,48 @@ export async function GET(request: NextRequest) {
   const browsers = browserRows.map(r => ({
     browser: r.dimensionValues?.[0]?.value ?? 'Unknown',
     sessions: n(r, 0),
+    newUsers: n(r, 1),
     pct: Math.round((n(r, 0) / totalBrowserSessions) * 100),
   }))
 
+  // Where visits came from, in plain groups: AI tools (ChatGPT, Perplexity…), social media,
+  // search, email, ads, other sites, direct. GA4 files AI tools under "Referral", so its own
+  // channel groups can't show them.
+  const ownHost = brand.websiteUrl ? hostOfUrl(brand.websiteUrl.startsWith('http') ? brand.websiteUrl : `https://${brand.websiteUrl}`) : ''
+  const ownRoot = ownHost ? rootDomain(ownHost) : ''
+  const GROUP: Record<string, string> = {
+    'AI assistants': 'AI tools', 'Organic social': 'Social media', 'Paid social': 'Social media ads',
+    'Organic search': 'Search engines', 'Paid search': 'Search ads', 'Email': 'Email',
+    'Referral': 'Other websites', 'Direct': 'Direct / typed in', 'Your website': 'Your own app or site',
+  }
+  const groups = new Map<string, { group: string; sessions: number; newUsers: number; sources: Map<string, number> }>()
+  for (const r of sourceRows) {
+    const rawSource = (r.dimensionValues?.[0]?.value ?? '').trim()
+    const rawMedium = (r.dimensionValues?.[1]?.value ?? '').trim()
+    const source = /^\(?(direct|not set|none)\)?$/i.test(rawSource) ? '' : rawSource.toLowerCase()
+    const medium = /^\(?(none|not set)\)?$/i.test(rawMedium) ? '' : rawMedium.toLowerCase()
+    const ch = classifyChannel({ referringDomain: source, utmSource: medium === 'referral' || medium === 'organic' ? '' : source, utmMedium: medium, paidClick: false }, ownRoot)
+    const group = GROUP[ch] ?? ch
+    const g = groups.get(group) ?? { group, sessions: 0, newUsers: 0, sources: new Map<string, number>() }
+    g.sessions += n(r, 0)
+    g.newUsers += n(r, 1)
+    if (source) g.sources.set(source, (g.sources.get(source) ?? 0) + n(r, 0))
+    groups.set(group, g)
+  }
+  const totalSourceSessions = [...groups.values()].reduce((a, g) => a + g.sessions, 0) || 1
+  const sourceGroups = [...groups.values()]
+    .sort((a, b) => b.sessions - a.sessions)
+    .map(g => ({
+      group: g.group,
+      sessions: g.sessions,
+      newUsers: g.newUsers,
+      pct: Math.round((g.sessions / totalSourceSessions) * 100),
+      top: [...g.sources].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([source, sessions]) => ({ source, sessions })),
+    }))
+
   return NextResponse.json({
     connected: true,
+    sourceGroups,
     brandName: brand.name,
     propertyId: meta.property_id,
     stats: parseStats(statsRows),

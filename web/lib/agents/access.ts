@@ -23,3 +23,15 @@ export async function agentAccess(): Promise<{ brandId: string; error?: undefine
   if (!brand) return { error: NextResponse.json({ error: 'No brand' }, { status: 404 }) }
   return { brandId: brand.id }
 }
+
+/** Ask (/ask and /api/ask/*): any signed-in user with a brand, on Pro when billing is on. Not early-access only. */
+export async function askAccess(): Promise<{ brandId: string; error?: undefined } | { brandId?: undefined; error: NextResponse }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  const pro = await requirePro()
+  if (pro) return { error: pro }
+  const [brand] = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, user.id)).limit(1)
+  if (!brand) return { error: NextResponse.json({ error: 'No brand' }, { status: 404 }) }
+  return { brandId: brand.id }
+}
