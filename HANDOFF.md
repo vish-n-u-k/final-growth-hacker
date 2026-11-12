@@ -786,6 +786,13 @@ Live check after the 7 Nov fixes: GSC (`sc-domain:frekto.ai`), competitors and P
 - **`get_weekly_review`** (`lib/mcp/tools/weekly_review.ts`): goal pace (this week so far, last full week), the daily numbers' week totals and channels, unusual days, work log entries of the last 7 days, emails sent by source (`outreach_emails`), checklist items / Today tasks ticked (history), Search & AI tests running (`changes`), module score changes; `how_to_read` asks Claude to judge and say when numbers are too small.
 - Tested against a local Postgres with GA4 / Search Console / PostHog faked (missing table created, stale history reported, goal defaults / validation / deadline / all three counts, spike flagged, quiet channel, internal visits). **Not run against the real APIs**; the HogQL `toStartOfWeek` / `toDate` queries and the GA4 `landingPage` filter haven't been checked live.
 
+## 4m. MCP: direct GA4 and Search Console tools (11 Nov)
+
+The owner asked for tools that use the GA4 and GSC APIs directly, so Claude can answer anything the fixed tools don't cover. `lib/mcp/tools/google_raw.ts`, in `tool-registry.ts`, `dispatch.ts`, Settings' tool list (`MCP_TOOLS`) and Ask's `READ_TOOLS`. Read-only, free (Google quota only), with the service accounts already connected.
+- **`ga4`**: `action` report (default; `request` = a runReport body, metrics / dimensions may be plain names, default dates 28daysAgo → yesterday, `metricAggregations: TOTAL`, `limit` ≤ 1000), realtime (runRealtimeReport), metadata (every dimension / metric name incl. custom ones, `search` filter). Rows come back as `{ dimension: value, metric: number }` with totals, `row_count`, `more` when cut, `quota_left_today`. Google's error comes back with the body `sent`.
+- **`gsc`**: `action` query (default; `request` = a Search Analytics body, dimensions query / page / date / country / device / searchAppearance / hour checked, default window last 30 days ending 2 days ago, `rowLimit` ≤ 1000, `dataState: all`), inspect (`url`: URL Inspection verdict, coverage, last crawl, canonical…), sitemaps, sites. The property is picked by `connectGsc` (domain properties included).
+- Tested with Google faked (two date ranges, missing metrics, a bad metric's error, metadata search, query, bad dimension, inspect, sitemaps). Not run against a real property yet.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:
