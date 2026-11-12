@@ -30,6 +30,21 @@ export function prefilter(c: Candidate[], knownKeys: Set<string>): Candidate[] {
   return out
 }
 
+/** One from each list in turn (a person found by two sources counts once), up to `max`. */
+export function interleave(lists: Candidate[][], max: number): Candidate[] {
+  const seen = new Set<string>()
+  const out: Candidate[] = []
+  for (let i = 0; out.length < max && lists.some(l => i < l.length); i++) {
+    for (const l of lists) {
+      const c = l[i]
+      if (!c || seen.has(c.key) || out.length >= max) continue
+      seen.add(c.key)
+      out.push(c)
+    }
+  }
+  return out
+}
+
 interface Verdict { i: number; keep: boolean; type?: string; niche?: string; why?: string }
 const TYPES = new Set<EngagementType>(['asking_for_help', 'buyer', 'hub', 'competitor_follower'])
 
@@ -85,7 +100,8 @@ export async function runEngagement(brandId: string): Promise<EngagementResult> 
 
   const known = new Set(data.leads.map(l => l.platform === 'reddit' ? `reddit:${l.url}` : `ig:${l.handle.replace(/^@/, '')}`))
   // Competitor commenters first: the warmest, so they are not cut by the limit
-  const fresh = prefilter([...rivals.candidates, ...reddit.candidates, ...tags.candidates], known).slice(0, MAX_JUDGED)
+  // Each source takes its turn, so a busy one (Reddit can bring 60 posts) can't push the others past the limit
+  const fresh = interleave([rivals.candidates, reddit.candidates, tags.candidates].map(c => prefilter(c, known)), MAX_JUDGED)
   const verdicts = await judge(brandId, brandBlock(b), p, fresh)
   const now = new Date().toISOString()
 
@@ -106,6 +122,10 @@ export async function runEngagement(brandId: string): Promise<EngagementResult> 
   }
 
   const checked = fresh.length
+  // Say so when a source was read but nothing from it was kept, so an empty tab has a reason
+  const readBy = (src: Candidate['source']) => fresh.filter(c => c.source === src).length
+  if (readBy('hashtag') > 0 && !leads.some(l => l.platform === 'instagram' && l.type === 'buyer')) notes.push(`Read ${readBy('hashtag')} Instagram posts, but none looked like buyers.`)
+  if (readBy('competitor') > 0 && !leads.some(l => l.type === 'competitor_follower')) notes.push(`Read ${readBy('competitor')} competitor comments, but none looked like buyers.`)
   await updateEngagement(brandId, (d: EngagementData) => {
     const have = new Set(d.leads.map(l => l.id))
     // Open ones first, then newest; the oldest finished ones make room
