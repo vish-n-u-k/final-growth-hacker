@@ -735,6 +735,26 @@ The owner's call: one switch for everything, with writing always instant. It is 
 - **Fixed:** `/api/ask/question` dropped `threadId`, so follow-ups never reached the earlier conversation.
 - Tested: the home page in the harness with the API faked (admin switch, From the team, opening a finished answer, sending a question on queue). Full build passes. **Not tried with the database, the admin queue's Run or the real Claude API yet.**
 
+## 4g-16. Ask gets its own switch on the admin page; queued work runs through Claude Code (12 Nov)
+
+The owner's call: a separate toggle for Ask in the admin dashboard only, not shared with module runs and not on the Ask page. Queued requests are done by the owner through Claude Code, as modules were. **This replaces the "one switch" parts of 4g-14 / 4g-15.**
+- **Setting:** `getAskMode` / `setAskMode` in `lib/modules/analysis-mode.ts`, `admin_settings` key `ask_analysis_mode` (default `direct`). Module runs keep `module_analysis_mode`.
+- **Admin page:** a second row under "Module runs", **"Ask AI: Run straight away through the API / Queued here for you to run"** with Switch to queue / Switch to API (`PATCH /api/admin/analysis-mode { mode, target: 'ask' }`; GET also returns `askMode`). A line under it says whether Run Analysis on this copy of the app uses Claude Code or the API.
+- **What follows it** (`modeFor` in `lib/ask/queue.ts`; admins always run straight away):
+  - typed questions
+  - Find new leads
+  - Look again now
+  - website reviews
+  - pausing pin refreshes and pattern noticing
+- Removed: the switch on Ask's home (`admin` / `mode` props), in the review panel, and `/api/ask/review` op `mode`.
+- **Claude Code:** like module runs, run the app **on your computer** with `USE_CLAUDE_CLI=true` (the `claude` CLI signed in, the production `DATABASE_URL`), open `/admin` there and press Run Analysis. Ask's work then runs on the Claude Code plan, not API credit.
+  - **How it works:** `lib/ai/claude-code.ts`. `createMessage(p)` is `client.messages.create` or, with `USE_CLAUDE_CLI=true`, `claudeCodeCreate(p)`. That function answers one Messages API turn with `claude -p --tools "" --system-prompt-file … --json-schema …`: the system prompt plus tool list, and the conversation as a transcript (tool calls and results included). It reads back `{ text, tool_calls }` from `structured_output` and returns a `Message` with `tool_use` blocks, so the loops run unchanged.
+  - **Forced tools:** `tool_choice` `tool` sets `minItems: 1` with that name; `none` gives text only.
+  - **Usage:** left at 0, so the dollar caps don't count the plan. What the CLI reports is logged as provider `cli`, model "sonnet (Claude Code)".
+  - **Used by:** the question loop (`engine.ts`, `MAX_MS` 240 s instead of 60 s), pin refresh, the website review (`MAX_MS` 15 min) and the Lead Engine's turns. A queue Run's budget is 30 min instead of 270 s. Writing and memory already go through `callAI`, which has its own CLI path.
+  - **Tested** in this sandbox with the real CLI: a tool loop (tool call, then result, then `give_answer`), forced and no-tool turns, and Ask's real `answerLoop` with the data tools faked (answered in 22 s, number check passed).
+  - **Not tested:** on Windows. The CLI runs through `claude.cmd` with a shell, and the JSON schema is passed as an argument. Not tried with a real queued job end to end either.
+
 ## 4g. Foundation: Google Business Profile check (4 Nov)
 
 - New check `google-business-profile` (weight 3) in Foundation under "Online Presence" (was "Social Media Presence") → "Google Business Profile".
