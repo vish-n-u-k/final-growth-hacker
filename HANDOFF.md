@@ -754,6 +754,11 @@ The owner's call: a separate toggle for Ask in the admin dashboard only, not sha
   - **Used by:** the question loop (`engine.ts`, `MAX_MS` 240 s instead of 60 s), pin refresh, the website review (`MAX_MS` 15 min) and the Lead Engine's turns. A queue Run's budget is 30 min instead of 270 s. Writing and memory already go through `callAI`, which has its own CLI path.
   - **Tested** in this sandbox with the real CLI: a tool loop (tool call, then result, then `give_answer`), forced and no-tool turns, and Ask's real `answerLoop` with the data tools faked (answered in 22 s, number check passed).
   - **Not tested:** on Windows. The CLI runs through `claude.cmd` with a shell, and the JSON schema is passed as an argument. Not tried with a real queued job end to end either.
+- **Lead searches finish inside the Run (12 Nov fix):**
+  - **The problem:** a queued "get me leads" was marked done once the question had started a search. The search then kept moving forward from the user's own Ask page (`/api/ask/task` GET advances it), on production and through the API.
+  - **Now:** `runQueued` runs the search to the end inside the admin's Run (`finishSearch`, `advanceEngine` stretches until it isn't running). The job is only marked done when the search is.
+  - If time runs out (about 270 s on the live site), the job stays waiting with `searching: true`. The admin row says "press Run again", and the next Run carries the search on. The user's home shows "The team is finding your leads".
+  - In queue mode, `/api/ask/task` and `/api/leads/engine` GET no longer advance a search for non-admins; they only show it.
 
 ## 4g. Foundation: Google Business Profile check (4 Nov)
 

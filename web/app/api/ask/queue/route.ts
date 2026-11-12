@@ -1,9 +1,7 @@
-import { NextRequest, NextResponse, after } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { askAccess } from '@/lib/agents/access'
 import { isAdminEmail } from '@/lib/admin'
-import { withDemo } from '@/lib/agents/demo'
-import { advanceEngine } from '@/lib/leads/engine'
 import { markSeen, readQueue, runQueued } from '@/lib/ask/queue'
 import { viaClaudeCode } from '@/lib/ai/claude-code'
 
@@ -36,10 +34,8 @@ export async function POST(req: NextRequest) {
   if (b.op === 'run') {
     if (!(await admin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     if (!b.brandId) return NextResponse.json({ error: 'Missing brandId' }, { status: 400 })
-    // A lead search keeps going after the answer, as Lead Finder's own route does
-    const later = (id: string) => after(() => withDemo(false, () => advanceEngine(id)).catch(e => console.error('[ask] queued search advance failed', e)))
     // Through Claude Code (USE_CLAUDE_CLI, on your computer) each turn is slower, so a Run may take longer
-    return NextResponse.json(await runQueued(b.brandId, viaClaudeCode() ? 1_800_000 : 270_000, later))
+    return NextResponse.json(await runQueued(b.brandId, viaClaudeCode() ? 1_800_000 : 270_000))
   }
   if (b.op === 'seen') {
     const a = await askAccess()

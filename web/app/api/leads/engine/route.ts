@@ -25,7 +25,9 @@ export async function GET() {
   const a = await agentAccess()
   if (a.error) return a.error
   const job = await readJob(a.brandId)
-  if (job?.status === 'running' && !(job.lockUntil && job.lockUntil > Date.now())) advanceLater(a.brandId)
+  // On the admin queue (Ask AI switch), only the admin's Run moves a search on: the page just shows it
+  const { data: { user } } = await (await createClient()).auth.getUser()
+  if (job?.status === 'running' && !(job.lockUntil && job.lockUntil > Date.now()) && await modeFor(user?.email) === 'direct') advanceLater(a.brandId)
   // Once it's finished, the page reloads the list with the new leads
   const data = job && job.status !== 'running' ? await withDemo(await readDemoSwitch(a.brandId), () => readLeadData(a.brandId)) : null
   return NextResponse.json({ job: statusOf(job), ...(data ? { data } : {}) })

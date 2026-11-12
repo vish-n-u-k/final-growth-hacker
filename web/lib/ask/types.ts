@@ -134,5 +134,6 @@ export interface QueuedJob {
   doneAt?: string
   events?: AskEvent[]              // a question's answer, as the page would have streamed it
   note?: string                    // a search or a pattern check: what happened
+  searching?: boolean              // its lead search is still going: the next Run carries it on
   seen?: boolean
 }

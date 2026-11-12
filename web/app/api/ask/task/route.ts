@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { modeFor } from '@/lib/ask/queue'
 import { askAccess } from '@/lib/agents/access'
 import { withDemo } from '@/lib/agents/demo'
 import { addFoundLeads, advanceEngine, readJob, statusOf, stopEngine } from '@/lib/leads/engine'
@@ -19,7 +21,9 @@ export async function GET() {
   const a = await askAccess()
   if (a.error) return a.error
   const job = await readJob(a.brandId)
-  if (job?.status === 'running' && !(job.lockUntil && job.lockUntil > Date.now())) advanceLater(a.brandId)
+  // On the admin queue (Ask AI switch), only the admin's Run moves a search on: the page just shows it
+  const { data: { user } } = await (await createClient()).auth.getUser()
+  if (job?.status === 'running' && !(job.lockUntil && job.lockUntil > Date.now()) && await modeFor(user?.email) === 'direct') advanceLater(a.brandId)
   return NextResponse.json({ task: statusOf(job) })
 }
 

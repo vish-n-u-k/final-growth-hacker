@@ -429,7 +429,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
                       <button type="button" disabled={j.status === 'waiting'} className={j.status === 'done' && !j.seen ? 'is-new' : ''}
                         onClick={() => { if (j.kind === 'question') return openJob(j); if (!j.seen) fetch('/api/ask/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'seen', id: j.id }) }).catch(() => {}); setJobs(js => js.map(x => (x.id === j.id ? { ...x, seen: true } : x))); setPanel(j.kind === 'leads' ? { kind: 'leads' } : { kind: 'memory' }) }}>
                         <span>{j.question}</span>
-                        <small>{j.status === 'waiting' ? `Waiting for the team · asked ${dayOf(j.at)}` : j.status === 'failed' ? (j.note ?? 'Didn’t finish. Ask again.') : j.kind !== 'question' && j.note ? j.note : !j.seen ? 'New answer · open it' : `Answered ${dayOf(j.doneAt ?? j.at)}`}</small>
+                        <small>{j.status === 'waiting' ? (j.searching ? 'The team is finding your leads' : `Waiting for the team · asked ${dayOf(j.at)}`) : j.status === 'failed' ? (j.note ?? 'Didn’t finish. Ask again.') : j.kind !== 'question' && j.note ? j.note : !j.seen ? 'New answer · open it' : `Answered ${dayOf(j.doneAt ?? j.at)}`}</small>
                       </button>
                     </li>
                   ))}
