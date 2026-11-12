@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { analysisRequests, moduleItems, brands } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { getValidAdminGmailToken } from '@/lib/gmail/admin-token'
-import { REVIEW_REQUEST_NAME } from '@/lib/ask/types'
+import { ASK_REQUEST_NAME, REVIEW_REQUEST_NAME } from '@/lib/ask/types'
 
 function buildNotificationEmail(opts: {
   moduleName: string
@@ -178,13 +178,14 @@ export async function PATCH(req: NextRequest) {
 
     const totalWeight = items.reduce((s, i) => s + i.weight, 0)
     const verifiedWeight = items.filter(i => i.aiVerified).reduce((s, i) => s + i.weight, 0)
-    const review = request.moduleName === REVIEW_REQUEST_NAME
+    const askWork = request.moduleName === ASK_REQUEST_NAME
+    const review = request.moduleName === REVIEW_REQUEST_NAME || askWork
     const aiPct = review ? null : totalWeight > 0 ? Math.round((verifiedWeight / totalWeight) * 100) : 0
 
     // An Ask website review opens on Ask; a module on its page
-    const dashboardUrl = review ? 'https://app.growjin.com/ask?review=1' : `https://app.growjin.com/dashboard/${request.moduleId}`
+    const dashboardUrl = askWork ? 'https://app.growjin.com/ask' : review ? 'https://app.growjin.com/ask?review=1' : `https://app.growjin.com/dashboard/${request.moduleId}`
     const bodyHtml = buildNotificationEmail({
-      moduleName:      review ? 'website review' : request.moduleName,
+      moduleName:      askWork ? 'Ask' : review ? 'website review' : request.moduleName,
       brandName:       request.brandName,
       brandWebsiteUrl: brand?.websiteUrl ?? request.websiteUrl,
       brandLogoUrl:    brand?.logoUrl ?? null,
@@ -195,7 +196,7 @@ export async function PATCH(req: NextRequest) {
 
     const message = [
       `To: ${request.userEmail}`,
-      review ? 'Subject: Your website review is ready' : `Subject: Your ${request.moduleName} analysis is ready`,
+      askWork ? 'Subject: Your answers from Ask are ready' : review ? 'Subject: Your website review is ready' : `Subject: Your ${request.moduleName} analysis is ready`,
       'MIME-Version: 1.0',
       'Content-Type: text/html; charset=utf-8',
       '',

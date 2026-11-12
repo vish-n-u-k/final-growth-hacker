@@ -15,6 +15,7 @@ import { fetchGscPageTraffic, fetchGscTopQueries } from '@/lib/modules/seo/keywo
 import type { LeadList, ThreadList, ToolLead, ToolThread } from '@/lib/mcp/tools/inbox'
 import { askTool } from './tools'
 import { refreshNoticed } from './memory'
+import { getAnalysisMode } from '@/lib/modules/analysis-mode'
 import { withAIContext } from '@/lib/ai/client'
 import { getSitemap } from '@/lib/modules/content-audit/fetcher'
 import { CARD_IDS, type Answer, type AskCards, type CardId } from './types'
@@ -652,7 +653,8 @@ export async function fillCards(brandId: string, onStep: OnStep = () => {}): Pro
     const out: AskCards = { at, cards: cards.sort((a, b) => ORDER.indexOf(a.id as CardId) - ORDER.indexOf(b.id as CardId)) }
     await saveSnapshot(brandId, key(), out)
     // What Ask notices about how they work (every few days; never from demo data)
-    if (!agentsDemo()) await withAIContext({ brandId, moduleType: 'ask-memory' }, () => refreshNoticed(brandId)).catch(e => console.error('[ask] noticing', e))
+    // Paused while runs go to the admin queue (it uses Claude); "Look again now" can still be queued
+    if (!agentsDemo() && await getAnalysisMode() === 'direct') await withAIContext({ brandId, moduleType: 'ask-memory' }, () => refreshNoticed(brandId)).catch(e => console.error('[ask] noticing', e))
     return out
   })
 }

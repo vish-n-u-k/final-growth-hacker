@@ -7,7 +7,7 @@ import { Top } from './AskPanel'
 // "What Ask remembers" (lib/ask/memory.ts): the owner's rules (edit, delete, add, paste in from another
 // Claude chat) and the patterns Ask noticed from what they do (make one a rule, or remove it).
 
-async function op(body: Record<string, unknown>): Promise<{ memory?: Memory; added?: number; error?: string }> {
+async function op(body: Record<string, unknown>): Promise<{ memory?: Memory; added?: number; error?: string; queued?: boolean }> {
   const r = await fetch('/api/ask/memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   return r.json().catch(() => ({ error: 'Something went wrong. Try again.' }))
 }
@@ -32,7 +32,8 @@ export function MemoryPanel({ onClose }: { onClose: () => void }) {
     setBusy(false)
     if (j.error) return setError(j.error)
     if (j.memory) setM(j.memory)
-    if (ok) setSaid(ok)
+    if (j.queued) setSaid('Sent to the GrowJin team. New patterns will show here once they’ve run it.')
+    else if (ok) setSaid(ok)
   }
 
   if (!m) return <div className="ask-sheet-in"><Top label="What Ask remembers" onClose={onClose} /><p className="ask-sheet-lede">{error || 'Opening…'}</p></div>

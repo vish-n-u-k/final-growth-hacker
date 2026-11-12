@@ -88,7 +88,7 @@ export function ReviewPanel({ onClose }: { onClose: () => void }) {
       <button type="button" className="ask-tl" disabled={modeBusy} onClick={() => changeMode(mode === 'direct' ? 'queue' : 'direct')}>
         {modeBusy ? 'Saving…' : mode === 'direct' ? 'Switch to queue' : 'Switch to API'}
       </button>
-      <small>Admin only. Same switch as the admin page’s module runs. You always run straight away.</small>
+      <small>Admin only. One switch for all of Ask (questions, lead searches, this review) and the admin page’s module runs. Writing emails always runs straight away, and so does everything you do.</small>
     </div>
   )
 

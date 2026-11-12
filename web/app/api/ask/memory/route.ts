@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { askAccess } from '@/lib/agents/access'
+import { createClient } from '@/lib/supabase/server'
+import { enqueue, modeFor } from '@/lib/ask/queue'
 import { withAIContext } from '@/lib/ai/client'
 import { addRule, answerOffer, editItem, importRules, offerOf, readMemory, refreshNoticed, removeItem, type Memory } from '@/lib/ask/memory'
 
@@ -39,7 +41,14 @@ export async function POST(req: NextRequest) {
       return out(r.memory, { added: r.added })
     }
     case 'offer': return out(await answerOffer(a.brandId, id, b.yes === true))
-    case 'notice': return out(await withAIContext({ brandId: a.brandId, moduleType: 'ask-memory' }, () => refreshNoticed(a.brandId, true)))
+    case 'notice': {
+      const { data: { user } } = await (await createClient()).auth.getUser()
+      if (await modeFor(user?.email) === 'queue') {
+        await enqueue(a.brandId, { id: user?.id ?? '', email: user?.email ?? '' }, { kind: 'notice', question: 'Look again at what I’ve done' })
+        return out(await readMemory(a.brandId), { queued: true })
+      }
+      return out(await withAIContext({ brandId: a.brandId, moduleType: 'ask-memory' }, () => refreshNoticed(a.brandId, true)))
+    }
     default: return NextResponse.json({ error: 'Unknown op' }, { status: 400 })
   }
 }

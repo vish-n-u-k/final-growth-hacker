@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { analysisRequests } from '@/lib/db/schema'
 import type { AnalysisMode } from '@/lib/modules/analysis-mode'
-import { REVIEW_REQUEST_NAME } from '@/lib/ask/types'
+import { ASK_REQUEST_NAME, REVIEW_REQUEST_NAME, type QueuedJob } from '@/lib/ask/types'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
 import AdminCosts from './AdminCosts'
 
@@ -174,18 +174,22 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
     setRunning(prev => ({ ...prev, [req.id]: true }))
     setErrors(prev => ({ ...prev, [req.id]: '' }))
     try {
-      // An Ask website review: moduleId is the brand id, and Ask runs it (Claude reads the site)
-      const res = req.moduleName === REVIEW_REQUEST_NAME
-        ? await fetch('/api/ask/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'run', brandId: req.moduleId }) })
-        : await fetch('/api/modules/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ moduleId: req.moduleId }),
-        })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setErrors(prev => ({ ...prev, [req.id]: (data as { error?: string }).error ?? 'Analysis failed.' }))
-        return
+      if (req.moduleName === ASK_REQUEST_NAME) {
+        // Ask's queued questions and searches (moduleId is the brand id), run a batch at a time
+        const r = await fetch('/api/ask/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'run', brandId: req.moduleId }) })
+        const d = await r.json().catch(() => ({})) as { ran?: number; remaining?: number; error?: string }
+        if (!r.ok) { setErrors(prev => ({ ...prev, [req.id]: d.error ?? 'Run failed.' })); return }
+        if (d.remaining) { setErrors(prev => ({ ...prev, [req.id]: `Ran ${d.ran}. ${d.remaining} still waiting: press Run again.` })); return }
+      } else {
+        // An Ask website review (moduleId is the brand id, Claude reads the site), or a module
+        const res = req.moduleName === REVIEW_REQUEST_NAME
+          ? await fetch('/api/ask/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'run', brandId: req.moduleId }) })
+          : await fetch('/api/modules/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ moduleId: req.moduleId }) })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          setErrors(prev => ({ ...prev, [req.id]: (data as { error?: string }).error ?? 'Analysis failed.' }))
+          return
+        }
       }
       // Mark done in DB + send notification email
       await fetch('/api/admin/requests', {
@@ -243,7 +247,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
 
       {tab === 'queue' && (
         <>
-          {/* How Growth Path modules run when a user clicks Run */}
+          {/* How Growth Path modules and Ask's Claude work run (one switch, lib/ask/queue.ts) */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -256,7 +260,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
             marginBottom: 12,
             fontSize: 13,
           }}>
-            <span style={{ color: 'var(--text-dim, #8aa897)' }}>Module runs:</span>
+            <span style={{ color: 'var(--text-dim, #8aa897)' }}>Module runs and Ask:</span>
             <span style={{ fontWeight: 600 }}>
               {mode === 'direct' ? 'Run straight away through the API' : 'Queued here for you to run'}
             </span>
@@ -355,7 +359,8 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
                       </td>
                       <td style={{ padding: '10px 12px' }}>
                         <span>{req.moduleName}</span>
-                        {req.moduleName !== REVIEW_REQUEST_NAME && <a href={`/dashboard/${req.moduleId}`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--green, #2fbf71)', textDecoration: 'none' }}>
+                        {req.moduleName === ASK_REQUEST_NAME && <AskJobs brandId={req.moduleId} />}
+                        {req.moduleName !== REVIEW_REQUEST_NAME && req.moduleName !== ASK_REQUEST_NAME && <a href={`/dashboard/${req.moduleId}`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--green, #2fbf71)', textDecoration: 'none' }}>
                           View module
                         </a>}
                       </td>
@@ -701,5 +706,28 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
         </section>
       )}
     </div>
+  )
+}
+
+/** What an Ask request is waiting on: the questions and searches, oldest first (opened on click). */
+function AskJobs({ brandId }: { brandId: string }) {
+  const [jobs, setJobs] = useState<QueuedJob[] | null>(null)
+  const [open, setOpen] = useState(false)
+  async function toggle() {
+    setOpen(o => !o)
+    if (!jobs) {
+      const d = await fetch(`/api/ask/queue?brandId=${brandId}`).then(r => r.json()).catch(() => ({ jobs: [] })) as { jobs?: QueuedJob[] }
+      setJobs((d.jobs ?? []).filter(j => j.status === 'waiting').reverse())
+    }
+  }
+  return (
+    <span style={{ display: 'block', fontSize: 11 }}>
+      <button type="button" onClick={toggle} style={{ background: 'none', border: 0, padding: 0, color: 'var(--green, #2fbf71)', cursor: 'pointer', fontSize: 11 }}>{open ? 'Hide what’s waiting' : 'See what’s waiting'}</button>
+      {open && (
+        <span style={{ display: 'block', marginTop: 4, color: 'var(--text-dim, #8aa897)' }}>
+          {!jobs ? 'Loading…' : !jobs.length ? 'Nothing waiting.' : jobs.map(j => <span key={j.id} style={{ display: 'block' }}>• {j.kind === 'question' ? `“${j.question}”` : j.question}</span>)}
+        </span>
+      )}
+    </span>
   )
 }

@@ -1,5 +1,13 @@
 # What's new in GrowJin
 
+## 12 Nov 2026
+
+### Fixed
+- **Follow-up questions in Ask remember the conversation.** Asking a follow-up now carries on from the answer above it, instead of starting fresh.
+
+### Improved
+- **Answers that come back later show on Ask's home.** When a question or search is handled by the GrowJin team, it shows under "From the team". You get an email when it's ready, and you can ask follow-ups from there.
+
 ## 11 Nov 2026
 
 ### New

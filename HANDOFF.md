@@ -702,6 +702,39 @@ The owner's Claude chat knows how they work after a few conversations; Ask didn'
   - Full build passes.
 - **Not run end to end against the real Claude API yet.**
 
+## 4g-15. One API / queue switch for all of Ask (12 Nov)
+
+The owner's call: one switch for everything, with writing always instant. It is the same `module_analysis_mode` as the admin page's "Module runs and Ask" (`lib/modules/analysis-mode.ts`).
+- **Where the switch is:**
+  - `/admin`
+  - Ask's home, in a dashed admin-only box under the ask box
+  - the website review panel
+  - Ask's home gets `admin` / `mode` props from `app/ask/page.tsx`. Flipping it posts `op: 'mode'` to `/api/ask/review`.
+- **Who follows it:** `modeFor(email)` in `lib/ask/queue.ts`. Admins always run straight away; everyone else follows the switch.
+- **On queue, for non-admins:**
+  - Typed questions (`/api/ask/question`) are queued. The lead searches and emails a question leads to are queued with it.
+  - "Find new leads" (`/api/leads/engine` op `start`, so **Lead Finder's own page too**) answers 202 `{ queued, error: message }`.
+  - "Look again now" in memory (`op: 'notice'`) answers `{ queued: true }`.
+  - Website reviews are queued (4g-14).
+  - **Writing (`/api/ask/write`) always runs.**
+  - Background Claude work pauses: pinned answers aren't rewritten (the cards route returns the saved pins; the cron skips them), and patterns aren't noticed after the cards fill. Ready answers keep working: they're worked out in code.
+- **Queue store** (`lib/ask/queue.ts`, `signal_snapshots` `ask:queue`):
+  - Jobs (`QueuedJob` in `types.ts`: kind `question` / `leads` / `notice`, the question, `threadId`, `clarify`, status, the answer's `events`, `note`), kept 30 days, up to 30.
+  - `enqueue` adds a job and one pending `analysis_requests` row per brand (`ASK_REQUEST_NAME` "Ask (questions and searches)", `moduleId` = brand id). The admin email goes out as for modules.
+  - A question queued past the daily limit is refused.
+- **Admin queue:**
+  - The row has "See what's waiting" (`GET /api/ask/queue?brandId=`).
+  - Run calls `POST /api/ask/queue { op: 'run', brandId }`. `runQueued` runs the jobs oldest first for up to ~270 s. A question goes through the normal `askQuestion` and keeps its events; a lead search keeps advancing with `after()`.
+  - If jobs remain, the row says "Ran N. M still waiting: press Run again" and stays pending. Otherwise it's marked done and the user gets "Your answers from Ask are ready" (link `/ask`).
+- **Ask's home** shows "From the team" (`GET /api/ask/queue`, last 10, top 5 shown):
+  - Waiting rows say when they were asked.
+  - Done rows say "New answer · open it" until seen (`op: 'seen'`).
+  - A question opens as a live answer (`openJob` replays the stored events through `applyEvent`, with "Run by the GrowJin team · when"), and follow-ups continue its conversation.
+  - A search or pattern check opens Leads or memory.
+  - A typed question on queue shows "Sent to the team" (event `queued`).
+- **Fixed:** `/api/ask/question` dropped `threadId`, so follow-ups never reached the earlier conversation.
+- Tested: the home page in the harness with the API faked (admin switch, From the team, opening a finished answer, sending a question on queue). Full build passes. **Not tried with the database, the admin queue's Run or the real Claude API yet.**
+
 ## 4g. Foundation: Google Business Profile check (4 Nov)
 
 - New check `google-business-profile` (weight 3) in Foundation under "Online Presence" (was "Social Media Presence") → "Google Business Profile".

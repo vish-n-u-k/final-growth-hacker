@@ -100,6 +100,7 @@ export type AskEvent =
   | { t: 'remembered'; id: string; text: string }                   // it saved a rule just now (the page offers Undo)
   | { t: 'task'; kind: 'leads'; brief: string; error?: string }   // a job started in the background (the page polls /api/ask/task)
   | { t: 'proposal'; proposal: Proposal }                         // something to send, waiting for the owner's OK
+  | { t: 'queued'; id: string; text: string }                      // runs go to the admin queue: the team runs it, the answer shows on home
   | { t: 'error'; text: string }
 
 /** Emails Claude wrote, to send only when the owner approves them on the page (send_email). */
@@ -118,3 +119,20 @@ export type FillEvent =
 
 /** The admin queue's module name for an Ask website review (analysis_requests.module_id is then the brand id). */
 export const REVIEW_REQUEST_NAME = 'Website review (Ask)'
+/** The admin queue's module name for Ask's queued questions and searches (module_id is then the brand id). */
+export const ASK_REQUEST_NAME = 'Ask (questions and searches)'
+
+/** One piece of Ask work waiting for the team, or done (lib/ask/queue.ts). */
+export interface QueuedJob {
+  id: string
+  kind: 'question' | 'leads' | 'notice'
+  question: string                 // what they typed, or what the job is ("Find new leads")
+  threadId?: string                // a follow-up's conversation
+  clarify?: { asked: string; chosen: string }
+  at: string
+  status: 'waiting' | 'done' | 'failed'
+  doneAt?: string
+  events?: AskEvent[]              // a question's answer, as the page would have streamed it
+  note?: string                    // a search or a pattern check: what happened
+  seen?: boolean
+}

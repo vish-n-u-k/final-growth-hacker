@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import type { Answer, AskCards, AskEvent, CardId, FillEvent, Panel, Proposal } from '@/lib/ask/types'
+import type { Answer, AskCards, AskEvent, CardId, FillEvent, Panel, Proposal, QueuedJob } from '@/lib/ask/types'
 import AskPicture from './AskPicture'
 import AskPanel from './AskPanel'
 import { ProposalView, TaskView } from './TaskView'
@@ -47,6 +47,8 @@ interface Live {
   proposal?: Proposal  // emails Claude wrote, waiting for the OK
   memory?: string[]    // what Ask remembers and used for this one
   remembered?: { id: string; text: string; undone?: boolean }[]   // rules it saved during this one
+  queued?: string      // runs go to the admin queue: sent to the team
+  fromTeam?: string    // an answer the team ran: when
 }
 
 type FillStep = { id: string; text: string; state: 'on' | 'done' | 'failed'; result?: string }
@@ -66,13 +68,15 @@ function useElapsed(start: number | null, on: boolean): number {
 
 type View = { kind: 'home' } | { kind: 'card'; id: CardId } | { kind: 'pin'; id: string } | { kind: 'live' }
 
-export default function AskPage({ brandName, site, initial, stale, initialOpen, backHref }: {
+export default function AskPage({ brandName, site, initial, stale, initialOpen, backHref, admin = false, mode: startMode = 'direct' }: {
   brandName: string
   site: string
   initial: AskCards | null
   stale: boolean
   initialOpen: CardId | null
   backHref?: string | null   // the rest of the app, when Ask isn't the home page
+  admin?: boolean            // GrowJin team: sees the API / queue switch, and always runs straight away
+  mode?: 'direct' | 'queue'  // the admin switch (lib/modules/analysis-mode.ts)
 }) {
   const [data, setData] = useState<AskCards | null>(initial)
   const [busy, setBusy] = useState(stale)
@@ -92,6 +96,21 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
   const [left, setLeft] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
   const [panel, setPanel] = useState<Panel | null>(null)
+  // The admin switch, and the work waiting for the team (lib/ask/queue.ts)
+  const [mode, setMode] = useState(startMode)
+  const [modeBusy, setModeBusy] = useState(false)
+  const [jobs, setJobs] = useState<QueuedJob[]>([])
+  const loadJobs = useCallback(() => {
+    fetch('/api/ask/queue').then(r => (r.ok ? r.json() : null)).then(j => { if (Array.isArray(j?.jobs)) setJobs(j.jobs) }).catch(() => {})
+  }, [])
+  useEffect(() => { loadJobs() }, [loadJobs])
+  async function flipMode() {
+    setModeBusy(true)
+    const next = mode === 'direct' ? 'queue' : 'direct'
+    const j = await fetch('/api/ask/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'mode', mode: next }) }).then(r => r.json()).catch(() => ({}))
+    setModeBusy(false)
+    if (j.mode) setMode(j.mode)
+  }
   // /ask?review=1 (the email when a queued website review is done) opens the review
   useEffect(() => { if (new URLSearchParams(window.location.search).get('review')) setPanel({ kind: 'review' }) }, [])
   // A pattern Ask noticed, offered once as a rule (lib/ask/memory.ts)
@@ -167,6 +186,26 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
 
   const cards = data?.cards ?? []
 
+  /** One streamed event onto the newest turn (a live question, or a queued one the team ran). */
+  function applyEvent(e: AskEvent) {
+    if (e.t === 'left') return setLeft(e.left)
+    if (e.t === 'thread') return setThreadId(e.id)
+    if (e.t === 'card') { setLive(() => null); return go({ kind: 'card', id: e.id }) }
+    setLive(l => {
+      if (!l) return l
+      if (e.t === 'think') return { ...l, thinking: e.text }
+      if (e.t === 'understand' || e.t === 'look' || e.t === 'check') return { ...l, thinking: undefined, steps: [...l.steps, { kind: e.t, text: e.text }] }
+      if (e.t === 'answer') return { ...l, running: false, answer: e.answer }
+      if (e.t === 'ask_back') return { ...l, running: false, askBack: { question: e.question, options: e.options } }
+      if (e.t === 'memory') return { ...l, memory: e.items }
+      if (e.t === 'remembered') return { ...l, remembered: [...(l.remembered ?? []), { id: e.id, text: e.text }] }
+      if (e.t === 'task') return { ...l, running: false, thinking: undefined, task: { kind: e.kind, brief: e.brief, error: e.error } }
+      if (e.t === 'proposal') return { ...l, running: false, thinking: undefined, proposal: e.proposal }
+      if (e.t === 'queued') return { ...l, running: false, thinking: undefined, queued: e.text }
+      return { ...l, running: false, error: e.text }
+    })
+  }
+
   /** Asks a question. `follow`: a follow-up in the same conversation; `clarify`: their answer to a question back. */
   async function run(question: string, clarify?: { asked: string; chosen: string }, follow = false) {
     abort.current?.abort()
@@ -176,23 +215,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
     if (follow) setTurns(ts => [...ts, turn])
     else if (clarify) setLive(() => turn)
     else { setTurns([turn]); setThreadId(null); setPinned([]); setPinError(''); go({ kind: 'live' }) }
-    const apply = (e: AskEvent) => {
-      if (e.t === 'left') return setLeft(e.left)
-      if (e.t === 'thread') return setThreadId(e.id)
-      if (e.t === 'card') { setLive(() => null); return go({ kind: 'card', id: e.id }) }
-      setLive(l => {
-        if (!l) return l
-        if (e.t === 'think') return { ...l, thinking: e.text }
-        if (e.t === 'understand' || e.t === 'look' || e.t === 'check') return { ...l, thinking: undefined, steps: [...l.steps, { kind: e.t, text: e.text }] }
-        if (e.t === 'answer') return { ...l, running: false, answer: e.answer }
-        if (e.t === 'ask_back') return { ...l, running: false, askBack: { question: e.question, options: e.options } }
-        if (e.t === 'memory') return { ...l, memory: e.items }
-        if (e.t === 'remembered') return { ...l, remembered: [...(l.remembered ?? []), { id: e.id, text: e.text }] }
-        if (e.t === 'task') return { ...l, running: false, thinking: undefined, task: { kind: e.kind, brief: e.brief, error: e.error } }
-        if (e.t === 'proposal') return { ...l, running: false, thinking: undefined, proposal: e.proposal }
-        return { ...l, running: false, error: e.text }
-      })
-    }
+    const apply = applyEvent
     try {
       const r = await fetch('/api/ask/question', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -210,10 +233,28 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
           if (line) { try { apply(JSON.parse(line) as AskEvent) } catch { /* a broken line */ } }
         }
       }
-      setLive(l => (l && l.running ? { ...l, running: false, error: l.answer || l.askBack || l.task || l.proposal ? undefined : 'Ask stopped before answering. Try again.' } : l))
+      setLive(l => (l && l.running ? { ...l, running: false, error: l.answer || l.askBack || l.task || l.proposal || l.queued ? undefined : 'Ask stopped before answering. Try again.' } : l))
+      loadJobs()
     } catch (e) {
       if (ctl.signal.aborted) return
       setLive(l => (l ? { ...l, running: false, error: e instanceof Error ? e.message : 'Ask couldn’t answer right now.' } : l))
+    }
+  }
+
+  /** A question the team ran: shown like a live answer (follow-ups carry on the same conversation). */
+  function openJob(j: QueuedJob) {
+    abort.current?.abort()
+    setTurns([{ question: j.question, steps: [], running: false, started: Date.now(), fromTeam: j.doneAt }])
+    setThreadId(j.threadId ?? null); setPinned([]); setPinError('')
+    go({ kind: 'live' })
+    for (const e of j.events ?? []) {
+      if (e.t === 'card') { setTurns([]); go({ kind: 'card', id: e.id }); break }
+      applyEvent(e)
+    }
+    if (!j.events?.length) setLive(l => (l ? { ...l, error: j.note ?? 'This one didn’t finish. Ask again.' } : l))
+    if (!j.seen) {
+      setJobs(js => js.map(x => (x.id === j.id ? { ...x, seen: true } : x)))
+      fetch('/api/ask/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'seen', id: j.id }) }).catch(() => {})
     }
   }
 
@@ -307,6 +348,13 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
               </div>
             ))}
             <h1 className="ask-q">{live.question}</h1>
+            {live.fromTeam && <p className="ask-team-when">Run by the GrowJin team · {dayOf(live.fromTeam)}</p>}
+            {live.queued && (
+              <div className="ask-queued" role="status">
+                <b>Sent to the team</b>
+                <p>{live.queued}</p>
+              </div>
+            )}
             <Work live={live} />
             {live.memory && live.memory.length > 0 && (
               <details className="ask-mem-used">
@@ -381,7 +429,31 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
                   </span>
                 </div>
               )}
+              {admin && (
+                <div className="ask-adm">
+                  <span>Admin · Ask runs <b>{mode === 'direct' ? 'straight away through the Claude API' : 'in the queue for the team'}</b></span>
+                  <button type="button" className="ask-tl" disabled={modeBusy} onClick={flipMode}>{modeBusy ? 'Saving…' : mode === 'direct' ? 'Switch to queue' : 'Switch to API'}</button>
+                  <small>One switch for all of Ask and the module runs. Writing emails, and anything you do, always runs straight away.</small>
+                </div>
+              )}
             </section>
+
+            {jobs.length > 0 && (
+              <section className="ask-sec">
+                <div className="ask-sec-h"><span className="ask-k">From the team</span></div>
+                <ul className="ask-team">
+                  {jobs.slice(0, 5).map(j => (
+                    <li key={j.id}>
+                      <button type="button" disabled={j.status === 'waiting'} className={j.status === 'done' && !j.seen ? 'is-new' : ''}
+                        onClick={() => { if (j.kind === 'question') return openJob(j); if (!j.seen) fetch('/api/ask/queue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'seen', id: j.id }) }).catch(() => {}); setJobs(js => js.map(x => (x.id === j.id ? { ...x, seen: true } : x))); setPanel(j.kind === 'leads' ? { kind: 'leads' } : { kind: 'memory' }) }}>
+                        <span>{j.question}</span>
+                        <small>{j.status === 'waiting' ? `Waiting for the team · asked ${dayOf(j.at)}` : j.status === 'failed' ? (j.note ?? 'Didn’t finish. Ask again.') : j.kind !== 'question' && j.note ? j.note : !j.seen ? 'New answer · open it' : `Answered ${dayOf(j.doneAt ?? j.at)}`}</small>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             <section className="ask-sec">
               <div className="ask-sec-h">

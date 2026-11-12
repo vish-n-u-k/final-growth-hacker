@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { askAccess } from '@/lib/agents/access'
 import { readCards, type OnStep } from '@/lib/ask/cards'
-import { refreshPins } from '@/lib/ask/pins'
+import { pinnedAnswers, refreshPins } from '@/lib/ask/pins'
+import { createClient } from '@/lib/supabase/server'
+import { modeFor } from '@/lib/ask/queue'
 import type { FillEvent } from '@/lib/ask/types'
 
 // Ask's ready answers (lib/ask/cards.ts). GET: the saved cards, worked out again when older than a
@@ -12,7 +14,10 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 async function both(brandId: string, refresh: boolean, onStep?: OnStep) {
-  const [cards, pins] = await Promise.all([readCards(brandId, { refresh, onStep }), refreshPins(brandId, { force: refresh, onStep })])
+  // Pinned answers are rewritten by Claude: paused while runs go to the admin queue (they keep their last answer)
+  const { data: { user } } = await (await createClient()).auth.getUser()
+  const paused = await modeFor(user?.email) === 'queue'
+  const [cards, pins] = await Promise.all([readCards(brandId, { refresh, onStep }), paused ? pinnedAnswers(brandId) : refreshPins(brandId, { force: refresh, onStep })])
   return { ...cards, pins }
 }
 

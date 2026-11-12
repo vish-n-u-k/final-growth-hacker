@@ -108,6 +108,7 @@ function FindLeads({ onBack, onClose, onChange }: { onBack: () => void; onClose:
   const [job, setJob] = useState<EngineStatus | null>(null)
   const [error, setError] = useState('')
   const [started, setStarted] = useState(false)
+  const [queued, setQueued] = useState('')   // runs go to the admin queue: the team starts it
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // The Lead Engine: Claude with the dataforseo / hunter / apify tools, saving with save_leads' code
@@ -122,7 +123,8 @@ function FindLeads({ onBack, onClose, onChange }: { onBack: () => void; onClose:
   async function start() {
     setError(''); setStarted(true)
     const r = await fetch('/api/leads/engine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'start' }) })
-    const j = await r.json().catch(() => ({})) as { job?: EngineStatus; error?: string }
+    const j = await r.json().catch(() => ({})) as { job?: EngineStatus; error?: string; queued?: boolean }
+    if (j.queued) { setStarted(false); return setQueued(j.error ?? 'Sent to the GrowJin team.') }
     if (!r.ok || !j.job) { setStarted(false); return setError(j.error ?? 'Couldn’t start a search.') }
     setJob(j.job); timer.current = setTimeout(poll, 4000)
   }
@@ -154,8 +156,9 @@ function FindLeads({ onBack, onClose, onChange }: { onBack: () => void; onClose:
           ? <button type="button" className="ask-btn ask-btn-quiet" onClick={stop}>Stop and keep what’s found</button>
           : fresh && job?.status === 'done'
             ? <button type="button" className="ask-btn" onClick={onBack}>See the leads</button>
-            : <button type="button" className="ask-btn" onClick={start} disabled={started}>Start a search</button>}
+            : <button type="button" className="ask-btn" onClick={start} disabled={started || !!queued}>Start a search</button>}
       </div>
+      {queued && <p className="ask-said" role="status">{queued}</p>}
       {(error || (fresh && job?.error)) && <p className="ask-err" role="alert">{error || job?.error}</p>}
     </div>
   )
