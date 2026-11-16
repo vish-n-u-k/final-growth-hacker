@@ -23,6 +23,8 @@ export const TOOL_GROUPS: ToolGroup[] = [
     // Lead Finder holds what Competitor Leads (/lead-finder) did; that address opens it
     { href: '/leads', label: 'Lead Finder', icon: 'people', pro: true, gmail: true,
       desc: 'Finds shops, Etsy and Instagram sellers, Reddit posts and your competitors\' unhappy customers every morning, writes to them and follows up.' },
+    { href: '/engagement', label: 'Engagement Leads', icon: 'people', pro: true,
+      desc: 'Finds Reddit threads, Instagram posts and competitor followers where your buyers are, so you can follow and comment by hand.' },
     { href: '/agents/leads', label: 'Lead Agent', icon: 'bot', pro: true, gmail: true,
       desc: 'Finds people who need what you sell every day, emails them and follows up.' },
     { href: '/gmail-hub', label: 'Email Outreach', icon: 'mail', lockedType: 'gmail-outreach', pro: true, gmail: true,

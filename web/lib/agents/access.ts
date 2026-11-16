@@ -10,12 +10,13 @@ import { requirePro } from '@/lib/billing/guard'
 import { hasEarlyAccess } from '@/lib/early-access'
 import { isComingSoon } from '@/lib/features'
 
-export async function agentAccess(): Promise<{ brandId: string; error?: undefined } | { brandId?: undefined; error: NextResponse }> {
+// `route` is the parked route that gates the caller (a tool such as /engagement is parked on its own)
+export async function agentAccess(route = '/agents'): Promise<{ brandId: string; error?: undefined } | { brandId?: undefined; error: NextResponse }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
-  if (isComingSoon('/agents', await hasEarlyAccess(user.email))) {
-    return { error: NextResponse.json({ error: 'AI Agents are coming soon.' }, { status: 403 }) }
+  if (isComingSoon(route, await hasEarlyAccess(user.email))) {
+    return { error: NextResponse.json({ error: route === '/agents' ? 'AI Agents are coming soon.' : 'This tool is coming soon.' }, { status: 403 }) }
   }
   const pro = await requirePro()
   if (pro) return { error: pro }
