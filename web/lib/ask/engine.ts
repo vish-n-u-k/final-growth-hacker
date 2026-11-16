@@ -21,6 +21,7 @@ import { readDemoSwitch } from '@/lib/agents/store'
 import { agentsDemo, withDemo } from '@/lib/agents/demo'
 import { startEngine } from '@/lib/leads/engine'
 import { addRule, memoryBlock } from './memory'
+import { ACTION_TOOLS } from './actions'
 import { reviewBrief } from './review'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { savedCards } from './cards'
@@ -44,7 +45,7 @@ const READ_TOOLS = [
   'get_posthog_power_users', 'get_posthog_churned_users', 'get_posthog_pro_users', 'get_blog_post', 'dataforseo',
   // Leads, email and the Search Agent: the same tools the Ask page uses
   'list_leads', 'list_replies', 'get_lead_settings', 'check_contacts', 'gmail_status', 'get_search_agent',
-  'get_daily_numbers', 'get_goal_progress', 'get_weekly_review', 'list_work',
+  'get_daily_numbers', 'get_goal_progress', 'get_weekly_review', 'list_work', 'get_social_post_status',
   // Direct, read-only GA4 and Search Console questions
   'ga4', 'gsc',
 ]
@@ -75,6 +76,7 @@ How to work:
 6. When they ask you to DO something rather than answer:
    - Find new leads, customers or prospects (from anywhere: X / Twitter, Etsy, LinkedIn, a city, a kind of business, a competitor's reviews): call \`start_lead_search\` with a clear brief and nothing else. It runs in the background with the search tools; the page shows its progress and they pick which leads to keep.
    - Send emails (answer replies, follow up, email people they name or paste, email leads on their list): look up what you need, write each email, then call \`propose_emails\`. Never say emails were sent: they approve them on the page.
+   - Anything else that changes something or spends money (make or schedule a social post, set their goal, tick / skip / dismiss a roadmap item or Today task, re-check a roadmap step, add / change / remove work log entries, save leads, mark a blog post published, look up an email with Hunter, run an Apify lookup): look up what you need (ids, job ids, module names), then call \`propose_actions\` with the exact calls. Nothing runs until they approve, and they can tell you the results afterwards. Never say it was done.
    - Analyse, review or audit their website or app as a whole: answer in one sentence (from the latest website review in the intro if there is one) and set the next step's action to website_review, which opens the full review and lets them run a fresh one.
    - Anything else your tools can't do: say so in \`give_answer\` and point to the right place.
 7. When they state a lasting preference ("always…", "never…", "I prefer…", "only…") or correct how you did something in a way that should apply next time, call \`remember\` with one short rule in their words (alongside your other tools), then carry on. Don't save one-off details of this question. Follow the owner's standing rules in the intro: they win over everything else.
@@ -167,6 +169,28 @@ const ASK_TOOLS: Anthropic.Tool[] = [
       },
     },
     strict: true,
+  },
+  {
+    name: 'propose_actions',
+    description: `Show actions for them to approve (nothing runs until they press the button). Each action is one call of one of these tools, with its input:\n\n${ACTION_TOOLS.map(n => { const t = TOOLS.find(x => x.name === n); return t ? `- ${n}: ${t.description}\n  input: ${JSON.stringify(t.inputSchema)}` : '' }).filter(Boolean).join('\n')}`,
+    input_schema: {
+      type: 'object', required: ['title', 'why', 'actions'],
+      properties: {
+        title: { type: 'string', description: 'What these do, e.g. "Schedule your Friday post".' },
+        why: { type: 'string', description: 'One short line on why.' },
+        actions: {
+          type: 'array', description: 'Up to 10 actions, in the order they should run.',
+          items: {
+            type: 'object', required: ['tool', 'label', 'args'],
+            properties: {
+              tool: { type: 'string', enum: [...ACTION_TOOLS] },
+              label: { type: 'string', description: 'What this one does, in plain words, e.g. "Mark “Add a sitemap” done".' },
+              args: { type: 'object', description: 'The tool\'s input, as described above.' },
+            },
+          },
+        },
+      },
+    },
   },
   {
     name: 'ready_answers',
@@ -574,6 +598,19 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
           }
         }
 
+        const acts = calls.find(c => c.name === 'propose_actions')
+        if (acts) {
+          const x = acts.input as { title?: string; why?: string; actions?: { tool?: string; label?: string; args?: unknown }[] }
+          const allowed: readonly string[] = ACTION_TOOLS
+          const actions = (Array.isArray(x.actions) ? x.actions : []).slice(0, 10)
+            .filter(a => typeof a?.tool === 'string' && allowed.includes(a.tool))
+            .map(a => ({ tool: a.tool!, label: clip(a.label, 160) || a.tool!, args: a.args && typeof a.args === 'object' && !Array.isArray(a.args) ? a.args as Record<string, unknown> : {} }))
+          if (actions.length) {
+            emit({ t: 'proposal', proposal: { kind: 'actions', title: clip(x.title, 120) || 'Things to do', why: clip(x.why, 200), actions } })
+            return null
+          }
+        }
+
         const given = calls.find(c => c.name === 'give_answer')
         if (given) {
           const { form, unchecked } = await finish(given.input as Form)
@@ -609,7 +646,7 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
             if (item) emit({ t: 'remembered', id: item.id, text: item.text })
             return { c, text: item ? 'Saved.' : 'Not saved (too short).', error: false }
           }
-          if (c.name === 'ask_back' || c.name === 'open_ready_answer' || c.name === 'start_lead_search' || c.name === 'propose_emails') return { c, text: 'Not available now: answer with what you can.', error: false }
+          if (c.name === 'ask_back' || c.name === 'open_ready_answer' || c.name === 'start_lead_search' || c.name === 'propose_emails' || c.name === 'propose_actions') return { c, text: 'Not available now: answer with what you can.', error: false }
           if (wrapUp) return { c, text: 'No more lookups: call give_answer now with what you have.', error: true }
           if (!READ_TOOLS.includes(c.name) && c.name !== 'ready_answers' && c.name !== 'outreach') return { c, text: `Unknown tool ${c.name}.`, error: true }
           if (c.name === 'dataforseo' && toolUsd >= TOOL_CAP_USD) return { c, text: 'The budget for paid lookups on this question is used. Answer with what you have.', error: true }

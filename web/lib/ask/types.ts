@@ -104,12 +104,13 @@ export type AskEvent =
   | { t: 'error'; text: string }
 
 /** Emails Claude wrote, to send only when the owner approves them on the page (send_email). */
-export interface Proposal {
-  kind: 'send_emails'
-  title: string
-  why: string
-  emails: { to: string; subject: string; body: string; thread_id?: string; in_reply_to?: string }[]
-}
+export type Proposal =
+  | { kind: 'send_emails'; title: string; why: string; emails: { to: string; subject: string; body: string; thread_id?: string; in_reply_to?: string }[] }
+  // Anything else that changes something or spends money (a post, the goal, a roadmap item, a lookup
+  // that costs credits): each is one MCP tool call, run only when the owner approves it (lib/ask/actions.ts)
+  | { kind: 'actions'; title: string; why: string; actions: ProposedAction[] }
+
+export interface ProposedAction { tool: string; label: string; args: Record<string, unknown> }
 
 /** Progress while the ready answers are worked out (one JSON object per line, ?stream=1). */
 export type FillEvent =

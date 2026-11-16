@@ -7,7 +7,10 @@ import { dispatch } from '@/lib/mcp/dispatch'
 export const UI_TOOLS = [
   'list_leads', 'list_replies', 'get_lead_settings', 'check_contacts', 'save_leads',
   'gmail_status', 'send_email', 'get_search_agent', 'get_blog_post', 'mark_blog_published',
-  'list_work', 'log_work', 'update_work', 'get_brand_info',
+  'list_work', 'log_work', 'update_work', 'get_brand_info', 'get_social_post_status',
+  // What Claude proposes and the owner approves (lib/ask/actions.ts)
+  'create_social_post', 'schedule_social_post', 'set_goal', 'toggle_item', 'skip_item', 'resolve_signal',
+  'analyze_module', 'delete_work', 'hunter', 'apify',
 ] as const
 
 /** Runs one tool for the brand, as Ask (a send is the person's own click). Errors come back as { error }. */

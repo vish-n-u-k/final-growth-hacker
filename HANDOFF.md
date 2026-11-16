@@ -760,6 +760,24 @@ The owner's call: a separate toggle for Ask in the admin dashboard only, not sha
   - If time runs out (about 270 s on the live site), the job stays waiting with `searching: true`. The admin row says "press Run again", and the next Run carries the search on. The user's home shows "The team is finding your leads".
   - In queue mode, `/api/ask/task` and `/api/leads/engine` GET no longer advance a search for non-admins; they only show it.
 
+## 4g-17. Ask can use every MCP tool: changes only after you approve (16 Nov)
+
+- **Read tools:** all of them are in Claude's `READ_TOOLS`. `get_social_post_status` was added.
+- **Everything that changes something or spends money** (`ACTION_TOOLS` in `lib/ask/actions.ts`): create / schedule a social post, set the goal, tick / skip a roadmap item, resolve a Today task, re-check a module, add / update / delete work log entries, save leads, mark a blog post published, Hunter, Apify.
+  - Claude can't run these itself. It calls the new Ask tool **`propose_actions`** `{ title, why, actions: [{ tool, label, args }] }`. The tool is not strict, and its description includes each action tool's own description and input schema.
+  - The engine checks each `tool` against `ACTION_TOOLS` and emits `{ t: 'proposal', proposal: { kind: 'actions', … } }`.
+- **Page** (`ActionsProposal` in `TaskView.tsx`, `ask-acts-list` CSS): one row per action with a tick box, its words and inputs.
+  - **Do N things** runs the ticked ones in order through `POST /api/ask/tool`, and each row shows ✓ or the error.
+  - **Tell Ask what happened** asks a follow-up in the same conversation with the results (a post's `job_id`, the email found…), so Claude can carry on (e.g. schedule the post it just made).
+- **`/api/ask/tool`:** these tools are added to `UI_TOOLS`, and `maxDuration` is 300 s.
+  - `analyze_module` follows the admin's **Module runs** switch: on queue, a non-admin's re-check becomes an admin queue request ("Sent to the GrowJin team…"). Foundation always runs.
+- `Proposal` is now a union: `send_emails` (as before) or `actions`.
+- Tested:
+  - The real `answerLoop` through the Claude CLI: "tick Add a sitemap and set my goal to 1000 by March" looked up the item, then proposed `toggle_item` with the right id and `set_goal` with target / counts / deadline.
+  - The approve view in the harness: run both, then the summary.
+  - Full build passes.
+- Not tried against the real database or Frekto.
+
 ## 4g. Foundation: Google Business Profile check (4 Nov)
 
 - New check `google-business-profile` (weight 3) in Foundation under "Online Presence" (was "Social Media Presence") → "Google Business Profile".

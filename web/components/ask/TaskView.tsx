@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { Proposal } from '@/lib/ask/types'
+import type { Proposal, ProposedAction } from '@/lib/ask/types'
+import { ACTION_WORDS } from '@/lib/ask/actions'
 import type { EngineLead, EngineStatus } from '@/lib/leads/engine'
 import { tool } from './AskPanel'
 
@@ -143,7 +144,77 @@ export function TaskView({ brief, error: startError }: { brief: string; error?: 
 }
 
 /** Emails to approve: edit any, then send all from Gmail (send_email), or not now. */
-export function ProposalView({ proposal }: { proposal: Proposal }) {
+/** Something Claude proposed: emails to send, or actions to run. Nothing happens until it's approved. */
+export function ProposalView({ proposal, onContinue }: { proposal: Proposal; onContinue?: (summary: string) => void }) {
+  return proposal.kind === 'actions' ? <ActionsProposal proposal={proposal} onContinue={onContinue} /> : <EmailProposal proposal={proposal} />
+}
+
+type Done = { ok: boolean; text: string; result: unknown }
+const shortArgs = (a: Record<string, unknown>) => Object.entries(a).filter(([, v]) => v !== '' && v != null).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${typeof v === 'object' ? JSON.stringify(v).slice(0, 120) : String(v).slice(0, 120)}`).join(' · ')
+
+function ActionsProposal({ proposal, onContinue }: { proposal: Extract<Proposal, { kind: 'actions' }>; onContinue?: (summary: string) => void }) {
+  const [on, setOn] = useState<boolean[]>(() => proposal.actions.map(() => true))
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState<(Done | null)[] | null>(null)
+  const [skipped, setSkipped] = useState(false)
+  const picked = proposal.actions.filter((_, i) => on[i])
+
+  async function run() {
+    setBusy(true)
+    const out: (Done | null)[] = proposal.actions.map(() => null)
+    for (let i = 0; i < proposal.actions.length; i++) {
+      if (!on[i]) continue
+      const a: ProposedAction = proposal.actions[i]
+      const r = await tool<Record<string, unknown>>(a.tool, a.args)
+      const err = typeof r?.error === 'string' ? r.error : ''
+      out[i] = { ok: !err, text: err || (typeof r?.message === 'string' ? r.message : 'Done'), result: r }
+      setDone([...out])
+    }
+    setDone([...out]); setBusy(false)
+  }
+  // What happened, for Ask to carry on from (a post's job id, an email found, a module's new score…)
+  const summary = () => proposal.actions.map((a, i) => done?.[i] ? `${a.label} (${a.tool}): ${done[i]!.ok ? 'done' : 'failed'} → ${JSON.stringify(done[i]!.result).slice(0, 1200)}` : '').filter(Boolean).join('\n')
+
+  if (skipped) return <p className="ask-faint">Not done.</p>
+  return (
+    <div className="ask-proposal">
+      <p className="ask-say"><b>{proposal.title}</b></p>
+      {proposal.why && <p className="ask-faint">{proposal.why}</p>}
+      <ul className="ask-acts-list">
+        {proposal.actions.map((a, i) => (
+          <li key={i}>
+            <label>
+              <input type="checkbox" checked={on[i]} disabled={busy || !!done} onChange={e => setOn(o => o.map((x, j) => (j === i ? e.target.checked : x)))} />
+              <span>
+                <b>{a.label}</b>
+                <small>{ACTION_WORDS[a.tool] ?? a.tool}{shortArgs(a.args) ? ` · ${shortArgs(a.args)}` : ''}</small>
+                {done?.[i] && <em className={done[i]!.ok ? 'is-ok' : 'is-err'}>{done[i]!.ok ? '✓ ' : ''}{done[i]!.text}</em>}
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      {!done
+        ? (
+          <div className="ask-approve">
+            <b>Do {plural(picked.length, 'thing')}?</b>
+            <p>Nothing has been done yet.</p>
+            <div className="ask-acts">
+              <button type="button" className="ask-btn" disabled={busy || !picked.length} onClick={run}>{busy ? 'Doing it…' : `Do ${plural(picked.length, 'thing')}`}</button>
+              <button type="button" className="ask-tl" disabled={busy} onClick={() => setSkipped(true)}>Not now</button>
+            </div>
+          </div>
+        )
+        : !busy && onContinue && (
+          <div className="ask-acts">
+            <button type="button" className="ask-btn ask-btn-quiet" onClick={() => onContinue(summary())}>Tell Ask what happened</button>
+          </div>
+        )}
+    </div>
+  )
+}
+
+function EmailProposal({ proposal }: { proposal: Extract<Proposal, { kind: 'send_emails' }> }) {
   const [emails, setEmails] = useState(proposal.emails)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<SendResult | null>(null)

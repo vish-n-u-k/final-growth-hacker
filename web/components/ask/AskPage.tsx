@@ -374,7 +374,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
               </div>
             )}
             {live.task && <TaskView brief={live.task.brief} error={live.task.error} />}
-            {live.proposal && <ProposalView proposal={live.proposal} />}
+            {live.proposal && <ProposalView proposal={live.proposal} onContinue={sum => run(`I approved these and they ran. What happened:\n${sum}\nCarry on from here: tell me the result, or propose the next step.`, undefined, true)} />}
             {live.answer && <AnswerBody a={live.answer} onPanel={setPanel} onAsk={q => askNext(q, true)} disabled={left === 0} />}
             {live.answer && threadId && (
               <div className="ask-pinrow">

@@ -1,5 +1,10 @@
 # What's new in GrowJin
 
+## 16 Nov 2026
+
+### New
+- **Ask can do more for you, with your OK.** Ask it to make or schedule a social post, set your goal, tick or skip a roadmap item, re-check a roadmap step, update your work log or look up someone's email. It shows exactly what it will do, and nothing happens until you press the button.
+
 ## 12 Nov 2026
 
 ### Fixed
