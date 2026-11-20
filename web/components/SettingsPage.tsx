@@ -1144,6 +1144,7 @@ const MCP_TOOLS = [
   { name: 'get_blog_post', desc: 'A blog post written in GrowJin, ready to add to your website' },
   { name: 'mark_blog_published', desc: 'Mark a blog post as live on your website' },
   { name: 'blog_keywords', desc: 'Your weekly blog keyword routine: find and judge keywords, plan a post, check rankings and posts to refresh' },
+  { name: 'customer_language', desc: 'How your buyers describe their problems: phrases, real quotes, words your site doesn\'t use, month on month' },
   { name: 'ga4', desc: 'Ask your Google Analytics anything: any report, period or filter' },
   { name: 'gsc', desc: 'Ask your Search Console anything: searches and pages, a page\'s index status, sitemaps' },
   { name: 'get_lead_settings', desc: 'Who Lead Finder looks for: your brief, ideal customer and sending settings' },

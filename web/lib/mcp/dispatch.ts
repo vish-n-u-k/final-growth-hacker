@@ -23,6 +23,7 @@ import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
 import { dataforseo } from '@/lib/mcp/tools/dataforseo'
 import { ga4, gsc } from '@/lib/mcp/tools/google_raw'
 import { blogKeywords } from '@/lib/seo/blog-keywords'
+import { customerLanguage } from '@/lib/seo/customer-language'
 import { hunter } from '@/lib/mcp/tools/hunter'
 import { apify } from '@/lib/mcp/tools/apify'
 import { logWork, listWork, updateWork, deleteWork } from '@/lib/mcp/tools/work_log'
@@ -195,6 +196,8 @@ export async function dispatch(
 
     case 'blog_keywords':
       return blogKeywords(brandId, args)
+    case 'customer_language':
+      return customerLanguage(brandId, args)
 
     case 'ga4':
       return ga4(brandId, args)

@@ -520,6 +520,27 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'customer_language',
+    description: [
+      'Customer-language listening: the exact words buyers use for their problems, to sharpen positioning, landing pages and content. Use it for "how do my buyers describe the problem", "what words do customers use", "what pain points come up", "is my homepage using my buyers\' words", "what are people complaining about", or a monthly listening run.',
+      'action "listen" (default; about $0.02 DataForSEO + one AI call): gathers problem-like searches from Search Console (90 days), replies to emails GrowJin sent, Reddit threads and Google\'s People also ask / related searches (DataForSEO), Hacker News comments, saved competitor reviews and anything pasted in; then groups the words by problem (phrases, counts, sources, 2-3 real quotes with links: quotes not found word for word are dropped), lists buyer words the site doesn\'t use (vs the homepage and main pages), suggests headlines, sub-headings, page sections and blog topics, and compares with last month (new, growing, fading phrases). Saved 30 days (fresh: true listens again). Present: the summary, the top problems with a quote each, the words to adopt, where to use them.',
+      'action "reviews" (Apify, about $0.20-0.40): reads low-star reviews from up to 3 competitor Capterra review pages (review_urls) and keeps them 30 days so the next listen includes them. If it says still reading, call it again without review_urls.',
+      'action "history" (free): past months\' top phrases and saved reviews.',
+      'Slack, Discord and private groups can\'t be read: ask the owner to paste messages and pass them as pasted. Blog topics it suggests can go to blog_keywords (evaluate) to check searches and difficulty.',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'listen (default), reviews or history.' },
+        topics: { type: 'array', items: { type: 'string' }, description: 'For listen: up to 3 problems to listen for, in buyer words (default: written from the brand).' },
+        pasted: { type: 'array', items: { type: 'string' }, description: 'For listen: messages or posts the owner pasted in (Slack, Discord, calls, support chats), up to 50.' },
+        review_urls: { type: 'array', items: { type: 'string' }, description: 'For reviews: up to 3 Capterra product review pages of competitors.' },
+        country: { type: 'string', description: 'Two-letter country for Google (default: the Search Agent\'s country).' },
+        fresh: { type: 'boolean', description: 'Ignore the saved month and listen again (costs again).' },
+      },
+    },
+  },
+  {
     name: 'ga4',
     description: [
       'Asks the brand\'s own Google Analytics 4 property anything, through the GA4 Data API with the service account connected in GrowJin. Use it when get_ga_analytics, get_ga_conversions or get_daily_numbers don\'t have the cut you need: any dimensions, metrics, date ranges, filters and ordering. Free (GA4 quota only). Read-only.',

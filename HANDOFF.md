@@ -84,6 +84,7 @@ What each tool does today:
 ## 3. Branch and working rules
 
 - **Work and push on `dev`.** Push to **`main` only when the owner says so.**
+  - 20 Nov: `main` brought up to `dev` (`blog_keywords`, `customer_language`).
   - `main` and `dev` were both brought up to the Ask branch (`claude/understanding-session-7y3nz3`, sections 4g–4g-10) on 11 Nov 2026.
   - Before that, `main` was last brought up to `dev` on 10 Nov 2026 (MCP Search Agent tool and audit false-pass fix; `main` and `dev` had split on 6 Nov and were joined again then).
   - 6 Nov: only the work log commit (4h) was cherry-picked to `main`; the Search & AI and Foundation work (4–5 Nov) is still on `dev` only.
@@ -855,6 +856,14 @@ The owner's sheet "Blogs keyword research" (15 weekly steps: seeds, expanding, l
 - **Grouping** ignores words in over half the list ("social", "media") unless a rarer word is shared too.
 - **Storage:** `signal_snapshots` `seo:blog-keywords`: paid answers cached 7 days (`fresh: true` looks again; newest 20 kept), weekly reviews (last 12). DataForSEO spend goes to Usage as "Claude (MCP)"; each paid answer has `cost_usd` (~$0.04 discover, ~$0.03-0.10 evaluate, ~$0.01 plan).
 - Tested: the pure helpers, and every action with Search Console, GA4, DataForSEO, the sitemap, the work log and the pages faked (tracked keywords from the work log, wrong page shown, striking distance, losing clicks, prune, weekly vs last week, cache hit, competitor gap with brand names dropped, groups, placement, internal-link sentence). **Not run against real data yet.**
+
+## 4p. MCP: `customer_language`, customer-language listening (20 Nov)
+
+The owner's "Social listening" sheet, second row only (customer language & trends; competitor switching was left out). `lib/seo/customer-language.ts` + `customer-language-pure.ts` (`isProblemSearch`, `quoteIsReal`, `phraseKey`, `compareMonths`, `wordsMissing`). In `tool-registry.ts`, `dispatch.ts`, Settings' `MCP_TOOLS` and Ask's `READ_TOOLS`.
+- **`listen`** (default): topics (or 3 problem searches Claude writes from the brand) → in parallel: Search Console queries from 90 days that read like a problem (questions or 4+ words, no brand / operator searches, top 120); replies to emails GrowJin sent (`listReplies`, 90 days, words of up to 6 threads); Hacker News comments (Algolia, free, 2 years); per topic two DataForSEO SERPs (`site:reddit.com <topic>` for threads, plus the topic for People also ask / related searches); Reddit thread text through its public `.json` for 5 threads (often refused; then Google's snippet); saved competitor reviews; `pasted` text. One Sonnet 5.5 call (feature `customer-language`) groups by problem with phrases, counts and quotes; **quotes not found word for word in a snippet are dropped** (`quotes_left_out`). Also words the buyers use that the homepage / Search & AI pages don't, headline / section / blog topic ideas, and new / growing / fading phrases vs the last saved month. Saved in `signal_snapshots` `seo:customer-language` (12 months; a month is reused for 30 days unless `fresh`). About $0.01-0.02 DataForSEO plus the AI call.
+- **`reviews`**: up to 3 Capterra review pages (`review_urls`) through the `capterra` Apify alias; 3 stars or less kept 30 days for the next listen. A run still going after the 45 s wait is picked up by calling `reviews` again without urls. Kept separate so `listen` stays under the MCP client's 60 s.
+- **`history`**: past months' top phrases and saved reviews.
+- Tested with every source faked (brand search left out, invented quote dropped, cache, reviews run → pick up, second month compared). **Not run against real data yet**; Capterra's output field names are read tolerantly.
 
 ## 5. What we are doing right now: making the tools calm
 
