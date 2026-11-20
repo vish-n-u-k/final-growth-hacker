@@ -494,6 +494,32 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'blog_keywords',
+    description: [
+      'The weekly blog keyword routine, end to end: discover → evaluate → plan → track. Use it for blog / SEO keyword questions: "do my weekly blog keyword review", "find keywords for a post about X", "which keywords should I target", "what do competitors rank for that I don\'t", "how do I rank for X", "check keyword placement on this page", "which posts should I refresh or remove", "how are my target keywords doing". It reads Search Console, GA4, the site\'s pages, the Search Agent\'s research and the keywords the owner tracks (work log entries with kind seo_keyword, Search & AI, the Keywords page). It only suggests; it never changes the website.',
+      'action "weekly" (default, free): tracked keywords vs the last review, the 3 best striking-distance chances, the post to refresh, new keyword ideas; saved so the next week can compare. Present it as: what moved, 3 chances each with one concrete change, the post to refresh, what to write next.',
+      'action "track" (free): every tracked keyword\'s position / clicks / impressions (last 28 days vs the 28 before, and whether Google shows the intended page), striking distance (#5-#20 searches with impressions), pages losing clicks (45 vs 45 days), each blog post\'s Google clicks and GA4 views / engagement, and posts to merge or remove.',
+      'action "discover" (DataForSEO, about $0.05): from seeds (default: the Search Agent\'s starting keywords, else tracked keywords): keyword ideas with searches a month, difficulty, cost per click, intent and the 12-month trend; long-tail versions; question searches; Google\'s "People also ask"; related searches; rising searches; and where the site already ranks.',
+      'action "evaluate" (DataForSEO, about $0.05-0.10): for keywords (default: the last discover): metrics, intent, trend, whether the site can win it (difficulty vs what the site can reach) and a priority; the competitor gap (searches up to 3 competitors rank #1-#20 for and the site doesn\'t); topic groups, each with the page that should target it (an existing page or a new post).',
+      'action "plan" (DataForSEO about $0.01 + reading pages): for one keyword (and optionally the page url): what ranks on Google (top results, format, typical length, headings, People also ask, extras like videos), keyword placement on the site\'s page (title, meta, H1, sub-headings, first 100 words, URL, image alt, mentions, length vs typical) with fixes, and internal links (which of the site\'s pages should link to it, the sentence to put the link on, and where it should link out).',
+      'action "history" (free): past weekly reviews and saved lookups.',
+      'Paid answers are kept 7 days (pass fresh: true to look again). Each paid answer has cost_usd.',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'weekly (default), track, discover, evaluate, plan or history.' },
+        seeds: { type: 'array', items: { type: 'string' }, description: 'For discover: up to 5 starting keywords.' },
+        keywords: { type: 'array', items: { type: 'string' }, description: 'For evaluate: up to 100 keywords.' },
+        competitors: { type: 'array', items: { type: 'string' }, description: 'For evaluate: up to 3 competitor domains (default: the brand\'s competitors).' },
+        keyword: { type: 'string', description: 'For plan: the keyword.' },
+        url: { type: 'string', description: 'For plan: the page that targets it (default: the page Google shows, else the best match).' },
+        country: { type: 'string', description: 'Two-letter country (default: the Search Agent\'s country).' },
+        fresh: { type: 'boolean', description: 'Ignore the 7-day saved answer and look again (costs again).' },
+      },
+    },
+  },
+  {
     name: 'ga4',
     description: [
       'Asks the brand\'s own Google Analytics 4 property anything, through the GA4 Data API with the service account connected in GrowJin. Use it when get_ga_analytics, get_ga_conversions or get_daily_numbers don\'t have the cut you need: any dimensions, metrics, date ranges, filters and ordering. Free (GA4 quota only). Read-only.',

@@ -47,7 +47,7 @@ const READ_TOOLS = [
   'list_leads', 'list_replies', 'get_lead_settings', 'check_contacts', 'gmail_status', 'get_search_agent',
   'get_daily_numbers', 'get_goal_progress', 'get_weekly_review', 'list_work', 'get_social_post_status',
   // Direct, read-only GA4 and Search Console questions
-  'ga4', 'gsc',
+  'ga4', 'gsc', 'blog_keywords',
 ]
 
 // Where a next step can send the person: the model picks one of these ids, never a URL

@@ -22,6 +22,7 @@ import { getPosthogChurnedUsers } from '@/lib/mcp/tools/get_posthog_churned_user
 import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
 import { dataforseo } from '@/lib/mcp/tools/dataforseo'
 import { ga4, gsc } from '@/lib/mcp/tools/google_raw'
+import { blogKeywords } from '@/lib/seo/blog-keywords'
 import { hunter } from '@/lib/mcp/tools/hunter'
 import { apify } from '@/lib/mcp/tools/apify'
 import { logWork, listWork, updateWork, deleteWork } from '@/lib/mcp/tools/work_log'
@@ -191,6 +192,9 @@ export async function dispatch(
         args['plan_value'] ? String(args['plan_value']) : 'pro',
         args['limit'] ? parseInt(String(args['limit']), 10) : 100,
       )
+
+    case 'blog_keywords':
+      return blogKeywords(brandId, args)
 
     case 'ga4':
       return ga4(brandId, args)

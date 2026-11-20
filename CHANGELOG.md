@@ -1,5 +1,10 @@
 # What's new in GrowJin
 
+## 20 Nov 2026
+
+### New
+- **Your weekly blog keyword routine, in Claude.** With GrowJin connected, ask "do my weekly blog keyword review" and Claude shows how your target keywords moved since last week, the three searches you're closest to page 1 for, the post that's losing clicks, and what to write next. You can also ask it to find keywords for a topic (with how many people search, how hard they are, what the searcher wants and whether interest is rising), see what your competitors rank for that you don't, group keywords into topics with the page each belongs on, and plan a post: what ranks on Google, the format and length to match, where your keyword is missing on your page, and which of your pages should link to it. Weekly reviews are saved so each week can be compared with the last. It only suggests; it never changes your website.
+
 ## 16 Nov 2026
 
 ### New

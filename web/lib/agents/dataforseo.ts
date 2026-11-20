@@ -24,7 +24,7 @@ export const COUNTRY_NAMES: Record<string, string> = {
   US: 'United States', IN: 'India', GB: 'United Kingdom', CA: 'Canada', AU: 'Australia',
   DE: 'Germany', FR: 'France', AE: 'United Arab Emirates', SG: 'Singapore',
 }
-const locationOf = (country: string) => LOCATION_CODES[country] ?? LOCATION_CODES.US
+export const locationOf = (country: string) => LOCATION_CODES[country] ?? LOCATION_CODES.US
 // The language people search in there. Search data (keyword ideas, rankings, AI Overviews) asks in
 // it; the Lead Agent's Google searches stay English, as its queries are written in English.
 const LANGUAGE_CODES: Record<string, string> = { DE: 'de', FR: 'fr' }
