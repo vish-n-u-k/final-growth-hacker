@@ -436,6 +436,10 @@ Rebuilt from the owner's brief: show the keywords the site already uses, where i
   - **Editable dates (5 Nov):** "Change date" on any running test (op `change_date`: `id`, `at`; "before" re-read from the check on or before that day) and on a page's "Aiming at this since" (op `kw_since`: `keyword`, `at`; moves the tracked keyword's `addedAt`, so its judge-from date moves too). Inline `DateEdit` in `SearchHubPage.tsx`.
   - Keywords to add come from the Search Agent's keyword ideas (DataForSEO Labs around the starting keywords, kept when the fit check passes), placed on a page sharing 2+ words, else a new post.
 
+## 4f-0. MCP connection guide for other apps (20 Nov)
+
+`docs/MCP.md`: URL, API key and OAuth sign-in, the JSON-RPC methods, how answers and errors look, every tool (read / changes / costs / sends email), and the rules a client should follow. Update it when a tool is added or the auth changes.
+
 ## 4f. MCP data passthrough tools (29 Oct)
 
 Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/tool-registry.ts`), so Claude can call the data sources directly and work out lead-gen logic in conversation. No scoring, filtering or deduping: raw API JSON back, the API's own message on errors (`{ error, http_status, response }`).
