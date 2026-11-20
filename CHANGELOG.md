@@ -2,6 +2,10 @@
 
 ## 20 Nov 2026
 
+### Fixed
+- **"How do my customers describe their problem?" works.** It stopped with "couldn't group what was found"; it now returns the results. The same fix helps Ask when it writes emails, replies and blog posts, and when it notices how you like things.
+- **Blog posts listed under two web addresses are counted once.** Google sometimes lists a post both with and without the / at the end. The blog keyword review now adds the two up and tells you which posts to redirect.
+
 ### New
 - **Hear how your buyers describe their problem.** With GrowJin connected, ask Claude "how do my customers talk about this?" and it gathers the words people really use: what they type into Google when they find you, replies to your emails, Reddit and Hacker News threads, Google's "People also ask", and (if you give it their Capterra pages) your competitors' unhappy reviews. You get the problems grouped in their words with real quotes and links, the words buyers use that your website doesn't, headline and blog ideas built from them, and, from next month on, which phrases are new, growing or fading. You can paste in messages from Slack groups or calls too.
 - **Your weekly blog keyword routine, in Claude.** With GrowJin connected, ask "do my weekly blog keyword review" and Claude shows how your target keywords moved since last week, the three searches you're closest to page 1 for, the post that's losing clicks, and what to write next. You can also ask it to find keywords for a topic (with how many people search, how hard they are, what the searcher wants and whether interest is rising), see what your competitors rank for that you don't, group keywords into topics with the page each belongs on, and plan a post: what ranks on Google, the format and length to match, where your keyword is missing on your page, and which of your pages should link to it. Weekly reviews are saved so each week can be compared with the last. It only suggests; it never changes your website.

@@ -202,7 +202,7 @@ export async function listen(brandId: string, args: Json = {}) {
   if (!seeds.length) {
     const raw = await withAIContext({ brandId, moduleType: 'customer-language', websiteUrl: b.websiteUrl }, () => callAI({
       system: 'Write 3 short searches (3-6 words) a buyer of this brand would type when they have the PROBLEM it solves, in their words, not the product category or the brand. JSON array of strings only.',
-      prompt: brandBlock(b), maxTokens: 200, model: MODEL, feature: 'customer-language',
+      prompt: brandBlock(b), maxTokens: 2000, model: MODEL, feature: 'customer-language',
     })).catch(() => '')
     seeds = (parseJsonLoose<string[]>(raw, 'array') ?? []).map(String).filter(Boolean).slice(0, 3)
     if (!seeds.length) seeds = (search?.settings.seeds ?? []).slice(0, 3)
@@ -261,12 +261,12 @@ export async function listen(brandId: string, args: Json = {}) {
     ...used.map((s, i) => `[${i + 1}] ${s.source}${s.where ? ` (${s.where})` : ''}: ${s.text}`),
   ].join('\n')
 
-  const raw = await withAIContext({ brandId, moduleType: 'customer-language', websiteUrl: b.websiteUrl }, () => callAI({ system: SYSTEM, prompt, maxTokens: 4000, model: MODEL, feature: 'customer-language' })).catch(e => `ERROR ${e instanceof Error ? e.message : e}`)
+  const raw = await withAIContext({ brandId, moduleType: 'customer-language', websiteUrl: b.websiteUrl }, () => callAI({ system: SYSTEM, prompt, maxTokens: 16000, model: MODEL, feature: 'customer-language' })).catch(e => `ERROR ${e instanceof Error ? e.message : e}`)
   type Out = { groups?: { problem: string; phrases?: { phrase: string; count: number }[]; count?: number; sources?: string[]; quotes?: { text: string; snippet?: number }[] }[]; words_you_dont_use?: Json[]; use_them?: Json; summary?: string }
   const ai = parseJsonLoose<Out>(raw, 'object')
   if (!ai?.groups) {
     await addUsage(brandId, meter, 'Claude (MCP)').catch(() => {})
-    return { error: `The AI couldn't group what was found${raw.startsWith('ERROR') ? ` (${raw.slice(6, 200)})` : ''}. Try again.`, found: bySource }
+    return { error: `The AI couldn't group what was found${raw.startsWith('ERROR') ? ` (${raw.slice(6, 200)})` : ''}. Try again.`, found: bySource, ai_said: raw.slice(0, 300) }
   }
 
   // Keep only quotes copied from a snippet, with the snippet's link and source

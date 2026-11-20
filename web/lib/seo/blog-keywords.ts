@@ -196,8 +196,19 @@ export async function track(brandId: string, args: Json = {}) {
 
   // Blog posts: search and visits side by side
   const gaBy = new Map(ga.rows.map(r => [pathOf(r.pagePath).toLowerCase(), r]))
-  const gsc90 = new Map(pages90.rows.map(r => [pathOf(r.page ?? '').toLowerCase(), r]))
-  const blogUrls = [...new Set([...sitemap.keys(), ...pages90.rows.map(r => r.page ?? '')].filter(u => u && isBlog(u)))]
+  // Google can list a post under two addresses (with and without the trailing /): add them up
+  const gsc90 = new Map<string, { clicks: number; impressions: number; position: number; urls: Set<string> }>()
+  for (const r of pages90.rows) {
+    const k = pathOf(r.page ?? '').toLowerCase()
+    const e = gsc90.get(k) ?? { clicks: 0, impressions: 0, position: 0, urls: new Set<string>() }
+    e.position = e.impressions + r.impressions ? (e.position * e.impressions + r.position * r.impressions) / (e.impressions + r.impressions) : r.position
+    e.clicks += r.clicks; e.impressions += r.impressions; e.urls.add(r.page ?? '')
+    gsc90.set(k, e)
+  }
+  const twoAddresses = [...gsc90.values()].filter(e => e.urls.size > 1).map(e => [...e.urls])
+  const seenPath = new Set<string>()
+  const blogUrls = [...sitemap.keys(), ...pages90.rows.map(r => r.page ?? '')]
+    .filter(u => u && isBlog(u) && !seenPath.has(pathOf(u).toLowerCase()) && !!seenPath.add(pathOf(u).toLowerCase()))
   const posts = blogUrls.map(u => {
     const g = gsc90.get(pathOf(u).toLowerCase()), a = gaBy.get(pathOf(u).toLowerCase())
     return {
@@ -225,6 +236,7 @@ export async function track(brandId: string, args: Json = {}) {
     losing_clicks: losing,
     blog_posts: posts.slice(0, 40),
     merge_or_remove: prune,
+    ...(twoAddresses.length ? { same_page_two_addresses: { count: twoAddresses.length, examples: twoAddresses.slice(0, 5), fix: 'Google shows these pages under two addresses (e.g. with and without the trailing /), which splits their signals. Redirect one version to the other and point the canonical tag at it. The numbers above add both up.' } } : {}),
     ...(Object.keys(problems).length ? { not_available: problems } : {}),
     how_to_read: 'position = average place on Google (1 = top), change + = moved up. striking_distance = searches at #5-#20 where a better title, a section answering the search, and internal links can lift the page to page 1. losing_clicks = refresh these. merge_or_remove = posts nobody finds: improve, fold into a stronger post with a redirect, or remove. All from Search Console and GA4 (free).',
   }

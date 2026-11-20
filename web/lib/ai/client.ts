@@ -246,7 +246,11 @@ export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet
       system,
       messages: [{ role: 'user', content: userContent }],
     })
-    response = message.content[0].type === 'text' ? message.content[0].text : '[]'
+    // Newer models (Sonnet 5.5, Opus 5.5) think first: the reply starts with a thinking block,
+    // so join the text blocks instead of reading only the first block
+    const text = message.content.map(b => (b.type === 'text' ? b.text : '')).join('').trim()
+    response = text || '[]'
+    if (message.stop_reason === 'max_tokens') console.warn(`[AI] ${feature ?? model}: reply cut off at max_tokens (${maxTokens})`)
     const u = message.usage
     const cost = anthropicCostUsd(model, u)
     console.log('┌─ [USAGE:SDK] ───────────────────────────────────────────')
